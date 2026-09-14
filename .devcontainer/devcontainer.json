@@ -1,0 +1,28 @@
+{
+    "name": "ventris",
+
+    // Generic base image, everything else is custom installed.
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+    "features": {
+        // Install node.
+        "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
+        // Install the GitHub CLI.
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+
+    // Fixes the hostname so shell prompts and logs identify the container.
+    "runArgs": ["--hostname", "ventris"],
+
+    "mounts": [
+        // One volume for the whole container home so all config survive a rebuild.
+        "source=ventris-home,target=/home/vscode,type=volume",
+    ],
+
+    // Runs the post-create script to set up the container.
+    "postCreateCommand": ".devcontainer/post-create.sh",
+
+    // Connect to the devcontainer as non-root.
+    // It allows Claude Code run with --dangerously-skip-permissions.
+    "remoteUser": "vscode"
+}
