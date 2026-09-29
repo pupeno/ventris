@@ -1,15 +1,9 @@
 # AGENTS.md
 
-## Agent skills
+Read README.md to orient yourself, learn what checks to run, how to activate the environment, run commands, etc.
 
-### Issue tracker
+Order functions and methods outside in: high-level entry points and orchestration first, followed by the helpers they call, then lower-level details. A linear read should establish the big picture before the implementation details.
 
-Issues live as GitHub issues on `pupeno/ventris`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Before declaring a task finished, and before making commits, make sure all formatting and checks pass.
 
-### Triage labels
-
-The five canonical triage roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Whenever you need to produce a temporary files for the human to read, put them in the tmp directory in this repository.

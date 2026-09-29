@@ -11,8 +11,8 @@
         "ghcr.io/devcontainers/features/github-cli:1": {}
     },
 
-    // Fixes the hostname so shell prompts and logs identify the container.
-    "runArgs": ["--hostname", "ventris"],
+    // Fixes the hostname so shell prompts and logs identify the container, and exposes host GPUs.
+    "runArgs": ["--hostname", "ventris", "--gpus", "all"],
 
     "mounts": [
         // One volume for the whole container home so all config survive a rebuild.
