@@ -16,14 +16,16 @@ def test_adjacent_rotation_matches_complex_reference_and_preserves_pair_norms():
     actual = rotate(vectors, angles.cos(), angles.sin())
 
     expected = torch.empty_like(vectors)
-    for batch in range(2):
+    for sequence_index in range(2):
         for head in range(2):
             for position in range(3):
                 for pair in range(2):
-                    value = complex(*vectors[batch, head, position, 2 * pair : 2 * pair + 2])
+                    value = complex(
+                        *vectors[sequence_index, head, position, 2 * pair : 2 * pair + 2]
+                    )
                     rotated = value * cmath.exp(1j * float(angles[position, pair]))
-                    expected[batch, head, position, 2 * pair] = rotated.real
-                    expected[batch, head, position, 2 * pair + 1] = rotated.imag
+                    expected[sequence_index, head, position, 2 * pair] = rotated.real
+                    expected[sequence_index, head, position, 2 * pair + 1] = rotated.imag
     torch.testing.assert_close(actual, expected)
     torch.testing.assert_close(actual[:, :, 0], vectors[:, :, 0])
     torch.testing.assert_close(

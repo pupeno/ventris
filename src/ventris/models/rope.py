@@ -169,7 +169,7 @@ class Attention(nn.Module):
         value = self.value(hidden_states)
 
         # Split model width into heads, then put heads before the sequence axis:
-        # (batch, sequence, model width) -> (batch, heads, sequence, head width).
+        # (device batch, sequence, model width) -> (device batch, heads, sequence, head width).
         head_shape = (
             device_batch_size,
             length,
