@@ -14,7 +14,7 @@ from ventris.checkpoint import (
 )
 from ventris.common import RunConfig, TrainingConfig
 from ventris.data import EOS_TEXT
-from ventris.models.vanilla import Ventris
+from ventris.models import Model, load_model
 
 TRAINING_CONFIG = TrainingConfig(
     steps=4,
@@ -27,7 +27,7 @@ TRAINING_CONFIG = TrainingConfig(
 RUN_CONFIG = RunConfig(device_batch_size=2)
 
 
-def optimizer(model: Ventris) -> torch.optim.AdamW:
+def optimizer(model: Model) -> torch.optim.AdamW:
     return torch.optim.AdamW(model.parameters(), lr=6e-4)
 
 
@@ -40,9 +40,12 @@ def tiny_tokenizer(path):
     return path
 
 
-def test_checkpoint_round_trip(tmp_path):
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
+def test_checkpoint_round_trip(tmp_path, architecture):
     torch.manual_seed(0)
-    model = tiny_model()
+    model = tiny_model(architecture)
+    if architecture == "rope":
+        model.config.rope_theta = 625.0
     input_ids = torch.randint(32, (2, 8))
     trained_optimizer = optimizer(model)
     model(input_ids).logits.square().mean().backward()
@@ -65,7 +68,7 @@ def test_checkpoint_round_trip(tmp_path):
     training_state, restored = load_checkpoint(path, torch.device("cpu"), TRAINING_CONFIG)
 
     torch.testing.assert_close(restored(input_ids).logits, expected)
-    torch.testing.assert_close(Ventris.from_pretrained(path)(input_ids).logits, expected)
+    torch.testing.assert_close(load_model(path)(input_ids).logits, expected)
     assert restored.generation_config.use_cache is False
     assert (
         restored.generate(  # pyright: ignore[reportAttributeAccessIssue]
@@ -92,7 +95,9 @@ def test_checkpoint_round_trip(tmp_path):
     assert saved_config["num_attention_heads"] == 4
     assert saved_config["intermediate_size"] == 64
     assert saved_config["max_position_embeddings"] == 8
-    assert saved_config["model_type"] == "ventris-vanilla-v1"
+    assert saved_config["model_type"] == f"ventris-{architecture}-v1"
+    if architecture == "rope":
+        assert saved_config["rope_theta"] == restored.config.rope_theta == 625.0
     restored_optimizer = optimizer(restored)
     restored_optimizer.load_state_dict(training_state["optimizer"])
     assert restored_optimizer.state
@@ -170,8 +175,9 @@ def test_load_checkpoint_requires_training_config(tmp_path):
         load_checkpoint(path, torch.device("cpu"), TRAINING_CONFIG)
 
 
-def test_model_only_directory_cannot_resume_training(tmp_path):
-    tiny_model().save_pretrained(tmp_path)
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
+def test_model_only_directory_cannot_resume_training(tmp_path, architecture):
+    tiny_model(architecture).save_pretrained(tmp_path)
 
     with pytest.raises(FileNotFoundError, match="training_state.pt"):
         load_checkpoint(tmp_path, torch.device("cpu"), TRAINING_CONFIG)

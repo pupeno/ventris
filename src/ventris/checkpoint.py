@@ -7,8 +7,7 @@ import torch
 from transformers import PreTrainedTokenizerFast
 
 from ventris.common import RunConfig, TrainingConfig
-from ventris.models import load_model
-from ventris.models.vanilla import Ventris
+from ventris.models import Model, load_model
 
 TRAINING_STATE_FILE = "training_state.pt"
 
@@ -17,7 +16,7 @@ def load_checkpoint(
     path: Path,
     target: torch.device,
     expected_training_config: TrainingConfig,
-) -> tuple[dict, Ventris]:
+) -> tuple[dict, Model]:
     """Load a checkpoint and verify its training configuration."""
     if not path.is_dir():
         raise FileNotFoundError(
@@ -33,7 +32,7 @@ def load_checkpoint(
 
 def save_checkpoint(
     path: Path,
-    model: Ventris,
+    model: Model,
     optimizer: torch.optim.Optimizer,
     step: int,
     *,

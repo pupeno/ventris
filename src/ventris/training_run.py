@@ -10,8 +10,7 @@ import torch
 
 from ventris.checkpoint import load_checkpoint, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
-from ventris.models import create_model
-from ventris.models.vanilla import Ventris
+from ventris.models import Model, create_model
 from ventris.reporting import TrainingReporter
 from ventris.training_results import StepResult, ValidationResult
 
@@ -21,7 +20,7 @@ class TrainingState:
     """The model and mutable progress needed to continue training."""
 
     checkpoint_dir: Path
-    model: Ventris
+    model: Model
     optimizer: torch.optim.AdamW
     completed_steps: int = 0
     training_seconds_elapsed: float = 0.0

@@ -7,8 +7,7 @@ from transformers import PreTrainedTokenizerFast
 
 from ventris.common import default_device, evaluation_mode, mixed_precision
 from ventris.data import load_tokenizer
-from ventris.models import load_model
-from ventris.models.vanilla import Ventris
+from ventris.models import Model, load_model
 
 
 def generate(
@@ -35,7 +34,7 @@ def generate(
 
 
 def generate_from_model(
-    model: Ventris,
+    model: Model,
     tokenizer: PreTrainedTokenizerFast,
     prompt: str,
     *,
