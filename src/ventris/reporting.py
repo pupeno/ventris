@@ -5,9 +5,9 @@ from contextlib import ExitStack
 from pathlib import Path
 from types import TracebackType
 
+import wandb
 from tqdm import tqdm
 
-import wandb
 from ventris.training_results import StepResult, ValidationResult
 
 _PROGRESS_BAR_FORMAT = (
