@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import wandb
 
 import ventris.reporting as reporting_module
 from ventris.reporting import TrainingReporter
@@ -169,7 +170,7 @@ def tracked_reporter(monkeypatch):
 
     progress_bars = []
     monkeypatch.setattr(reporting_module, "tqdm", progress_factory(progress_bars))
-    monkeypatch.setattr(reporting_module.wandb, "init", init_wandb)
+    monkeypatch.setattr(wandb, "init", init_wandb)
 
     reporter = TrainingReporter(
         total_steps=2,

@@ -2,6 +2,7 @@ from dataclasses import asdict
 
 import pytest
 import torch
+import wandb
 from tokenizers import Tokenizer, models
 from transformers import PreTrainedTokenizerFast
 
@@ -12,11 +13,10 @@ from tests.test_reporting import RecordingRun, progress_factory
 from ventris.checkpoint import TRAINING_STATE_FILE, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
 from ventris.models.vanilla import Ventris
+from ventris.training_results import StepResult, ValidationResult
 from ventris.training_run import (
-    StepResult,
     TrainingRun,
     TrainingState,
-    ValidationResult,
     build_optimizer,
 )
 
@@ -137,7 +137,7 @@ def test_run_tracks_actual_fresh_or_resumed_model(
         init_options.update(options)
         return tracking_run
 
-    monkeypatch.setattr(reporting_module.wandb, "init", init_wandb)
+    monkeypatch.setattr(wandb, "init", init_wandb)
     monkeypatch.setattr(reporting_module, "tqdm", progress_factory([]))
     monkeypatch.setattr(training_run_module, "create_model", tiny_model)
     training = short_training(3)

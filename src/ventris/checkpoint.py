@@ -2,6 +2,7 @@
 
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import torch
 from transformers import PreTrainedTokenizerFast
@@ -18,7 +19,7 @@ def load_checkpoint(
     expected_training_config: TrainingConfig,
     *,
     expected_architecture: str | None = None,
-) -> tuple[dict, Model]:
+) -> tuple[dict[str, Any], Model]:
     """Load a checkpoint and verify its training configuration."""
     if not path.is_dir():
         raise FileNotFoundError(

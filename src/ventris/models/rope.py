@@ -1,6 +1,7 @@
 """A small, complete decoder-only Transformer."""
 
 import math
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -35,7 +36,7 @@ class ModelConfig(PreTrainedConfig):
         num_attention_heads: int = 12,
         intermediate_size: int = 2_048,
         rope_theta: float = 10_000.0,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if not kwargs.pop("tie_word_embeddings", True):
             raise ValueError("Ventris always ties its input and output embeddings")

@@ -2,7 +2,7 @@ import math
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import torch
@@ -91,14 +91,14 @@ def _distributed_optimizer_step(
     )
     try:
         torch.manual_seed(0)
-        training_run_module.create_model = tiny_model
-        state = TrainingState.initialize(
-            short_training(3),
-            checkpoint_dir=Path(output_directory),
-            resume=None,
-            target=torch.device("cpu"),
-            architecture=architecture,
-        )
+        with patch.object(training_run_module, "create_model", tiny_model):
+            state = TrainingState.initialize(
+                short_training(3),
+                checkpoint_dir=Path(output_directory),
+                resume=None,
+                target=torch.device("cpu"),
+                architecture=architecture,
+            )
         model, optimizer = state.model, state.optimizer
         training_model = DistributedDataParallel(model, gradient_as_bucket_view=True)
         local_device_batches = device_batches[rank::world_size]

@@ -96,6 +96,6 @@ ruff format .
 ```console
 ruff format --check .
 ruff check .
-pyright .
+basedpyright
 pytest -q
 ```
