@@ -103,6 +103,10 @@ class TrainingRun:
                 run_id=state.checkpoint_dir.name,
                 config={
                     **state.model.config.shape_dict(),
+                    "model_type": state.model.config.model_type,
+                    "parameter_count": sum(
+                        parameter.numel() for parameter in state.model.parameters()
+                    ),
                     **asdict(training_conf),
                     **asdict(run_conf),
                     "world_size": world_size,

@@ -59,7 +59,7 @@ def progress_factory(progress_bars):
     return Progress
 
 
-def test_reporter_tracks_overall_checkpoint_and_device_batch_progress(monkeypatch):
+def test_reporter_tracks_overall_checkpoint_and_device_batch_progress(monkeypatch, capsys):
     progress_bars = []
     monkeypatch.setattr(reporting_module, "tqdm", progress_factory(progress_bars))
     checkpoint = Path("latest.pt")
@@ -73,7 +73,7 @@ def test_reporter_tracks_overall_checkpoint_and_device_batch_progress(monkeypatc
         tokens_per_step=16,
         wandb_project=None,
         run_id="test-run",
-        config={},
+        config={"model_type": "ventris-vanilla-v1", "parameter_count": 11_616},
     ) as reporter:
         reporter.start_validation()
         reporter.validation_batch_completed(8)
@@ -110,6 +110,7 @@ def test_reporter_tracks_overall_checkpoint_and_device_batch_progress(monkeypatc
     assert not progress_bars[0].messages[0].endswith("\n")
     assert all(not message.startswith("\n") for message in progress_bars[0].messages)
     assert all(not message.endswith("\n\n") for message in progress_bars[0].messages)
+    assert capsys.readouterr().out == "Model: ventris-vanilla-v1 | Parameters: 11,616\n"
 
 
 def test_reporter_keeps_consecutive_training_results_on_adjacent_lines(monkeypatch):
@@ -125,7 +126,7 @@ def test_reporter_keeps_consecutive_training_results_on_adjacent_lines(monkeypat
         tokens_per_step=8,
         wandb_project=None,
         run_id="test-run",
-        config={},
+        config={"model_type": "ventris-vanilla-v1", "parameter_count": 11_616},
     ) as reporter:
         for completed in range(1, 3):
             reporter.step_completed(
@@ -179,7 +180,11 @@ def tracked_reporter(monkeypatch):
         tokens_per_step=8,
         wandb_project="test-project",
         run_id="test-run",
-        config={"wandb_project": "test-project"},
+        config={
+            "wandb_project": "test-project",
+            "model_type": "ventris-vanilla-v1",
+            "parameter_count": 11_616,
+        },
     )
     return reporter, run, init_options, progress_bars
 

@@ -5,8 +5,10 @@ import torch
 from tokenizers import Tokenizer, models
 from transformers import PreTrainedTokenizerFast
 
+import ventris.reporting as reporting_module
 import ventris.training_run as training_run_module
 from tests.helpers import tiny_model
+from tests.test_reporting import RecordingRun, progress_factory
 from ventris.checkpoint import TRAINING_STATE_FILE, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
 from ventris.models.vanilla import Ventris
@@ -120,6 +122,74 @@ def run_factory(tmp_path, monkeypatch):
         )
 
     return create
+
+
+@pytest.mark.parametrize("architecture,parameter_count", [("vanilla", 11_616), ("rope", 11_360)])
+@pytest.mark.parametrize("resume", [False, True])
+@pytest.mark.parametrize("world_size,is_primary", [(1, True), (2, True), (2, False)])
+def test_run_tracks_actual_fresh_or_resumed_model(
+    tmp_path, monkeypatch, capsys, architecture, parameter_count, resume, world_size, is_primary
+):
+    tracking_run = RecordingRun()
+    init_options = {}
+
+    def init_wandb(**options):
+        init_options.update(options)
+        return tracking_run
+
+    monkeypatch.setattr(reporting_module.wandb, "init", init_wandb)
+    monkeypatch.setattr(reporting_module, "tqdm", progress_factory([]))
+    monkeypatch.setattr(training_run_module, "create_model", tiny_model)
+    training = short_training(3)
+    run_config = RunConfig(**{**asdict(short_run()), "wandb_project": "test-project"})
+    tokenizer_dir = tiny_tokenizer(tmp_path / "tokenizer")
+    checkpoint = None
+    if resume:
+        model = tiny_model(architecture)
+        checkpoint = save_checkpoint(
+            tmp_path / "saved" / "latest",
+            model,
+            build_optimizer(model, training.peak_learning_rate),
+            step=1,
+            training_config=training,
+            run_config=run_config,
+            tokenizer_dir=tokenizer_dir,
+            training_seconds_elapsed=1.0,
+            best_validation_loss=1.0,
+            best_validation_step=1,
+        )
+    state = TrainingState.initialize(
+        training,
+        checkpoint_dir=tmp_path / "test-run",
+        resume=checkpoint,
+        target=torch.device("cpu"),
+        architecture=None if resume else architecture,
+    )
+
+    with TrainingRun(
+        state,
+        training,
+        run_config,
+        accumulation_steps=1,
+        world_size=world_size,
+        is_primary=is_primary,
+        tokenizer_dir=tokenizer_dir,
+    ):
+        pass
+
+    if not is_primary:
+        assert init_options == {}
+        assert capsys.readouterr().out == ""
+        return
+    assert init_options["config"]["model_type"] == f"ventris-{architecture}-v1"
+    assert init_options["config"]["parameter_count"] == parameter_count
+    assert init_options["config"]["world_size"] == world_size
+    assert init_options["config"]["hidden_size"] == 32
+    assert init_options["id"] == "test-run"
+    assert init_options["resume"] == "allow"
+    assert capsys.readouterr().out == (
+        f"Model: ventris-{architecture}-v1 | Parameters: {parameter_count:,}\n"
+    )
 
 
 def test_validation_retains_lowest_loss_as_best_checkpoint(tmp_path, run_factory):
