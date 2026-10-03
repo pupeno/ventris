@@ -12,7 +12,7 @@ Model = VanillaVentris | RopeVentris
 ModelConfig = VanillaConfig | RopeConfig
 
 
-def create_model(architecture: str = "vanilla") -> Model:
+def create_model(architecture: str) -> Model:
     """Construct a fresh default model for the selected architecture."""
     if architecture == "vanilla":
         return VanillaVentris()

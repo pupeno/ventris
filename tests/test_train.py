@@ -460,7 +460,7 @@ def test_training_requires_cuda(monkeypatch):
 )
 def test_train_rejects_invalid_config(training, run, message):
     with pytest.raises(ValueError, match=message):
-        train_module.train(training_conf=training, run_conf=run)
+        train_module.train(training_conf=training, run_conf=run, architecture="vanilla")
 
 
 def test_device_batches_across_all_processes_must_divide_effective_batch():
@@ -644,7 +644,9 @@ def test_nonfinite_loss_stops_short_training_run_at_initial_checkpoint(tmp_path,
     monkeypatch.setattr(train_module, "_next_token_loss", nonfinite_loss)
 
     with pytest.raises(FloatingPointError, match="training loss is not finite: nan"):
-        train_module.train(training_conf=short_training(2), run_conf=short_run())
+        train_module.train(
+            training_conf=short_training(2), run_conf=short_run(), architecture="vanilla"
+        )
 
     assert loss_calls == 1
     run_directory = next((tmp_path / "checkpoints").iterdir())
@@ -666,7 +668,9 @@ def test_train_exits_before_model_setup_when_prepared_data_is_missing(tmp_path, 
     with pytest.raises(
         FileNotFoundError, match=r"prepared training data.*scripts/prepare_data\.py"
     ):
-        train_module.train(training_conf=short_training(2), run_conf=short_run())
+        train_module.train(
+            training_conf=short_training(2), run_conf=short_run(), architecture="vanilla"
+        )
 
     assert not (tmp_path / "checkpoints").exists()
 
@@ -742,6 +746,7 @@ def test_latest_checkpoint_can_start_new_or_continue_source_run(
         run_conf=short_run(),
         resume=checkpoint,
         continue_run=continue_run,
+        architecture=architecture,
     )
 
     assert resumed == (checkpoint if continue_run else branch_dir / "latest")
@@ -778,6 +783,7 @@ def test_milestone_checkpoint_can_start_new_or_continue_source_run(
         run_conf=short_run(),
         resume=milestone,
         continue_run=continue_run,
+        architecture=architecture,
     )
 
     assert resumed == (milestone.parent / "latest" if continue_run else branch_dir / "latest")
@@ -816,22 +822,21 @@ def test_validation_interval_also_controls_checkpoint_interval(tmp_path, monkeyp
     monkeypatch.setattr(training_run_module, "save_checkpoint", save)
 
     run = replace(short_run(), validation_interval_steps=3)
-    train_module.train(training_conf=short_training(5), run_conf=run)
+    train_module.train(training_conf=short_training(5), run_conf=run, architecture="vanilla")
 
     assert len(validations) == 3
     assert saved_steps == [0, 3, 5]
 
 
 @pytest.mark.parametrize(
-    ("selection", "expectation"),
-    [(None, None), ("vanilla", None), ("vanilla", "vanilla"), ("rope", None), ("rope", "rope")],
+    ("architecture", "expectation"),
+    [("vanilla", None), ("vanilla", "vanilla"), ("rope", None), ("rope", "rope")],
 )
 def test_selected_training_and_resumed_update_match_uninterrupted_run(
-    tmp_path, resume_environment, monkeypatch, selection, expectation
+    tmp_path, resume_environment, monkeypatch, architecture, expectation
 ):
     training = short_training(3)
     run = replace(short_run(), validation_interval_steps=1, milestone_interval_checkpoints=1)
-    architecture = selection or "vanilla"
 
     def create_selected_model(selected):
         assert torch.initial_seed() == training.seed
@@ -841,8 +846,9 @@ def test_selected_training_and_resumed_update_match_uninterrupted_run(
         return model
 
     monkeypatch.setattr(training_run_module, "create_model", create_selected_model)
-    options = {} if selection is None else {"architecture": selection}
-    uninterrupted = train_module.train(training_conf=training, run_conf=run, **options)
+    uninterrupted = train_module.train(
+        training_conf=training, run_conf=run, architecture=architecture
+    )
     expected_state, expected_model = load_checkpoint(uninterrupted, torch.device("cpu"), training)
     milestone = uninterrupted.parent / "step-000002"
     saved_state, saved_model = load_checkpoint(milestone, torch.device("cpu"), training)
@@ -906,6 +912,16 @@ def test_resume_architecture_conflict_precedes_weight_and_optimizer_loading(
             resume=checkpoint,
             architecture=requested,
         )
+
+
+def test_fresh_training_requires_architecture_before_setup(monkeypatch):
+    initialize_distributed = Mock(side_effect=AssertionError("training setup started"))
+    monkeypatch.setattr(train_module, "_initialize_distributed", initialize_distributed)
+
+    with pytest.raises(ValueError, match="architecture is required for fresh training"):
+        train_module.train(training_conf=short_training(2), run_conf=short_run())
+
+    initialize_distributed.assert_not_called()
 
 
 @pytest.mark.parametrize("resume", [False, True])

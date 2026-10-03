@@ -293,6 +293,7 @@ def test_best_validation_state_persists_across_resume(tmp_path, run_factory):
         checkpoint_dir=tmp_path,
         resume=latest,
         target=torch.device("cpu"),
+        architecture="vanilla",
     )
     run = run_factory(state, training)
 
@@ -398,6 +399,7 @@ def test_current_run_config_is_saved_after_resume(tmp_path, run_factory):
         checkpoint_dir=tmp_path,
         resume=checkpoint,
         target=torch.device("cpu"),
+        architecture="vanilla",
     )
     run = run_factory(state, training)
 

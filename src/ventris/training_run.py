@@ -39,7 +39,9 @@ class TrainingState:
     ) -> "TrainingState":
         """Create a fresh state or restore one from a checkpoint."""
         if resume is None:
-            model = create_model("vanilla" if architecture is None else architecture)
+            if architecture is None:
+                raise ValueError("architecture is required for fresh training")
+            model = create_model(architecture)
             model.to(target)  # pyright: ignore[reportArgumentType]
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             state = cls(checkpoint_dir, model, optimizer)

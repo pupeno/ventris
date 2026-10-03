@@ -21,18 +21,14 @@ def test_default_models_own_independent_configurations(model_class, config_class
     assert second.config.max_position_embeddings == 1_024
 
 
-def test_factory_defaults_to_vanilla():
+def test_factory_creates_selected_vanilla():
     from ventris.models import create_model
 
     with torch.device("meta"):
-        model = create_model()
+        model = create_model("vanilla")
 
     assert isinstance(model, Ventris)
     assert model.config.model_type == "ventris-vanilla-v1"
-    with torch.device("meta"):
-        explicit = create_model("vanilla")
-    assert isinstance(explicit, Ventris)
-    assert explicit.config.shape_dict() == model.config.shape_dict()
     assert model.config.shape_dict() == {
         "vocab_size": 50_257,
         "max_position_embeddings": 1_024,

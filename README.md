@@ -43,27 +43,37 @@ scripts/prepare_data.py
 
 ## Train the model
 
-Train Vanilla with the defaults:
+Training script is:
 
-```console
+```
 scripts/train.py
 ```
 
-Explicitly select RoPE:
+Get all the possible arguments with:
+
+```
+scripts/train.py --help
+```
+
+Train the vanilla architecture:
+
+```console
+scripts/train.py --architecture vanilla
+```
+
+Train the rope architecture:
 
 ```console
 scripts/train.py --architecture rope
 ```
 
-Startup output and Weights & Biases configuration report the actual model identity (`ventris-vanilla-v1` or `ventris-rope-v1`) and measured parameter count.
-
 Process eight sequences per device batch:
 
 ```console
-scripts/train.py --device-batch-size 8
+scripts/train.py --architecture vanilla --device-batch-size 8
 ```
 
-Continue training from a checkpoint; its saved configuration selects the architecture:
+Continue training from a checkpoint:
 
 ```console
 scripts/train.py --resume-checkpoint data/checkpoints/2026-09-20_14-30-00/latest
@@ -72,7 +82,7 @@ scripts/train.py --resume-checkpoint data/checkpoints/2026-09-20_14-30-00/latest
 Train on every GPU in the machine with one process per GPU:
 
 ```console
-torchrun --standalone --nproc-per-node=gpu scripts/train.py
+torchrun --standalone --nproc-per-node=gpu scripts/train.py --architecture vanilla
 ```
 
 ## Generate text

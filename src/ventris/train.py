@@ -67,6 +67,8 @@ def train(
     architecture: str | None = None,
 ) -> Path:
     """Train through ``training_conf.steps`` and return the latest checkpoint."""
+    if architecture is None and resume is None:
+        raise ValueError("architecture is required for fresh training")
     distributed, initialized_here = _initialize_distributed()
     try:
         return _train(training_conf, run_conf, resume, distributed, continue_run, architecture)

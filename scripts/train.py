@@ -49,7 +49,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--architecture",
         choices=("vanilla", "rope"),
         default=None,
-        help="fresh model architecture; omitted resume selection uses the saved model",
+        help="model architecture; required for fresh training",
     )
     parser.add_argument(
         "--device-batch-size",
@@ -115,6 +115,8 @@ def _parse_arguments() -> argparse.Namespace:
     arguments = parser.parse_args()
     if arguments.continue_run and arguments.resume_checkpoint is None:
         parser.error("--continue-run requires --resume-checkpoint")
+    if arguments.architecture is None and arguments.resume_checkpoint is None:
+        parser.error("--architecture or --resume-checkpoint is required")
 
     return arguments
 
