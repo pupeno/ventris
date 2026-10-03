@@ -35,15 +35,18 @@ class TrainingState:
         checkpoint_dir: Path,
         resume: Path | None,
         target: torch.device,
+        architecture: str | None = None,
     ) -> "TrainingState":
         """Create a fresh state or restore one from a checkpoint."""
         if resume is None:
-            model = create_model()
+            model = create_model("vanilla" if architecture is None else architecture)
             model.to(target)  # pyright: ignore[reportArgumentType]
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             state = cls(checkpoint_dir, model, optimizer)
         else:
-            training_state, model = load_checkpoint(resume, target, training_conf)
+            training_state, model = load_checkpoint(
+                resume, target, training_conf, expected_architecture=architecture
+            )
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             optimizer.load_state_dict(training_state["optimizer"])
             saved_best_loss = training_state.get("best_validation_loss")

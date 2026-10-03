@@ -16,13 +16,15 @@ def load_checkpoint(
     path: Path,
     target: torch.device,
     expected_training_config: TrainingConfig,
+    *,
+    expected_architecture: str | None = None,
 ) -> tuple[dict, Model]:
     """Load a checkpoint and verify its training configuration."""
     if not path.is_dir():
         raise FileNotFoundError(
             f"checkpoint not found at {path}; run scripts/train.py or choose an existing checkpoint"
         )
-    model = load_model(path)
+    model = load_model(path, expected_architecture=expected_architecture)
     model.to(target)  # pyright: ignore[reportArgumentType]
     training_state = torch.load(path / TRAINING_STATE_FILE, map_location=target)
     if training_state.get("training_config") != asdict(expected_training_config):

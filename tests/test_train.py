@@ -1,5 +1,6 @@
 import math
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -19,6 +20,7 @@ from tests.helpers import tiny_model
 from ventris.checkpoint import TRAINING_STATE_FILE, load_checkpoint, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
 from ventris.data import EOS_TEXT
+from ventris.models import load_model
 from ventris.train import (
     _learning_rate,
     _next_token_loss,
@@ -26,7 +28,7 @@ from ventris.train import (
     _should_validate,
     _training_device,
 )
-from ventris.training_run import build_optimizer
+from ventris.training_run import TrainingState, build_optimizer
 
 
 class FixedLogitModel(torch.nn.Module):
@@ -79,6 +81,7 @@ def _distributed_optimizer_step(
     rendezvous: str,
     output_directory: str,
     device_batches: list[dict[str, torch.Tensor]],
+    architecture: str,
 ) -> None:
     dist.init_process_group(
         "gloo",
@@ -88,9 +91,16 @@ def _distributed_optimizer_step(
     )
     try:
         torch.manual_seed(0)
-        model = tiny_model()
+        training_run_module.create_model = tiny_model
+        state = TrainingState.initialize(
+            short_training(3),
+            checkpoint_dir=Path(output_directory),
+            resume=None,
+            target=torch.device("cpu"),
+            architecture=architecture,
+        )
+        model, optimizer = state.model, state.optimizer
         training_model = DistributedDataParallel(model, gradient_as_bucket_view=True)
-        optimizer = build_optimizer(model, learning_rate=1e-2)
         local_device_batches = device_batches[rank::world_size]
 
         loss, gradient_norm, gradient_clipped = _optimizer_step(
@@ -132,7 +142,8 @@ def _distributed_validation(
     )
     try:
         torch.manual_seed(0)
-        model = tiny_model()
+        model = load_model(Path(output_directory) / "validation-model")
+        model.train()
 
         def generate_samples(model):
             assert rank == 0
@@ -316,16 +327,25 @@ def test_distributed_validation_rejects_an_empty_split():
         )
 
 
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
 @pytest.mark.parametrize(
     ("world_size", "validation_sequences", "device_batch_size", "max_tokens", "expected_tokens"),
     [(2, 5, 2, 33, 40), (3, 2, 1, 8, 8)],
 )
 def test_distributed_validation_matches_single_process(
-    tmp_path, world_size, validation_sequences, device_batch_size, max_tokens, expected_tokens
+    tmp_path,
+    architecture,
+    world_size,
+    validation_sequences,
+    device_batch_size,
+    max_tokens,
+    expected_tokens,
 ):
     torch.manual_seed(0)
+    model = tiny_model(architecture)
+    model.save_pretrained(tmp_path / "validation-model")
     reference_loss, reference_tokens = train_module._measure_validation_loss(
-        tiny_model(),
+        model,
         tiny_data(validation_sequences=validation_sequences)["validation"],
         device_batch_size=device_batch_size,
         target=torch.device("cpu"),
@@ -651,12 +671,13 @@ def test_train_exits_before_model_setup_when_prepared_data_is_missing(tmp_path, 
     assert not (tmp_path / "checkpoints").exists()
 
 
-def test_distributed_accumulation_matches_one_process_effective_batch(tmp_path):
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
+def test_distributed_accumulation_matches_one_process_effective_batch(tmp_path, architecture):
     device_batches = [
         {"input_ids": ((torch.arange(9) + index) % 32).unsqueeze(0)} for index in range(4)
     ]
     torch.manual_seed(0)
-    reference_model = tiny_model()
+    reference_model = tiny_model(architecture)
     reference_optimizer = build_optimizer(reference_model, learning_rate=1e-2)
     reference_loss, reference_gradient_norm, reference_gradient_clipped = _optimizer_step(
         reference_model,
@@ -669,7 +690,7 @@ def test_distributed_accumulation_matches_one_process_effective_batch(tmp_path):
 
     spawn(
         _distributed_optimizer_step,
-        args=(2, str(tmp_path / "rendezvous"), str(tmp_path), device_batches),
+        args=(2, str(tmp_path / "rendezvous"), str(tmp_path), device_batches, architecture),
         nprocs=2,
     )
 
@@ -696,13 +717,14 @@ def resume_environment(tmp_path, monkeypatch):
     return branch_dir
 
 
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
 @pytest.mark.parametrize("continue_run", [False, True])
 def test_latest_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run
+    tmp_path, resume_environment, continue_run, architecture
 ):
     branch_dir = resume_environment
     training = short_training(3)
-    model = tiny_model()
+    model = tiny_model(architecture)
     checkpoint = save_checkpoint(
         tmp_path / "checkpoints" / "run" / "latest",
         model,
@@ -731,13 +753,14 @@ def test_latest_checkpoint_can_start_new_or_continue_source_run(
         assert source_state["step"] == 2
 
 
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
 @pytest.mark.parametrize("continue_run", [False, True])
 def test_milestone_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run
+    tmp_path, resume_environment, continue_run, architecture
 ):
     branch_dir = resume_environment
     training = short_training(3)
-    model = tiny_model()
+    model = tiny_model(architecture)
     milestone = save_checkpoint(
         tmp_path / "checkpoints" / "original" / "step-000002",
         model,
@@ -797,3 +820,107 @@ def test_validation_interval_also_controls_checkpoint_interval(tmp_path, monkeyp
 
     assert len(validations) == 3
     assert saved_steps == [0, 3, 5]
+
+
+@pytest.mark.parametrize(
+    ("selection", "expectation"),
+    [(None, None), ("vanilla", None), ("vanilla", "vanilla"), ("rope", None), ("rope", "rope")],
+)
+def test_selected_training_and_resumed_update_match_uninterrupted_run(
+    tmp_path, resume_environment, monkeypatch, selection, expectation
+):
+    training = short_training(3)
+    run = replace(short_run(), validation_interval_steps=1, milestone_interval_checkpoints=1)
+    architecture = selection or "vanilla"
+
+    def create_selected_model(selected):
+        assert torch.initial_seed() == training.seed
+        model = tiny_model(selected)
+        if selected == "rope":
+            model.config.rope_theta = 625.0
+        return model
+
+    monkeypatch.setattr(training_run_module, "create_model", create_selected_model)
+    options = {} if selection is None else {"architecture": selection}
+    uninterrupted = train_module.train(training_conf=training, run_conf=run, **options)
+    expected_state, expected_model = load_checkpoint(uninterrupted, torch.device("cpu"), training)
+    milestone = uninterrupted.parent / "step-000002"
+    saved_state, saved_model = load_checkpoint(milestone, torch.device("cpu"), training)
+    destination = tmp_path / "resumed"
+    restored = TrainingState.initialize(
+        training,
+        checkpoint_dir=destination,
+        resume=milestone,
+        target=torch.device("cpu"),
+        architecture=expectation,
+    )
+    assert restored.completed_steps == 2
+    assert restored.training_seconds_elapsed == saved_state["training_seconds_elapsed"]
+    assert restored.best_validation_loss == saved_state["best_validation_loss"]
+    assert restored.best_validation_step == saved_state["best_validation_step"]
+    assert restored.model.config.shape_dict() == saved_model.config.shape_dict()
+    assert restored.model.config.model_type == f"ventris-{architecture}-v1"
+    if architecture == "rope":
+        assert restored.model.config.rope_theta == 625.0
+    assert restored.optimizer.state
+    for moments, saved in zip(
+        restored.optimizer.state.values(), saved_state["optimizer"]["state"].values(), strict=True
+    ):
+        assert moments["step"].item() == 2
+        assert torch.count_nonzero(moments["exp_avg"]) > 0
+        for key in ("step", "exp_avg", "exp_avg_sq"):
+            torch.testing.assert_close(moments[key], saved[key], rtol=0, atol=0)
+
+    monkeypatch.setattr(train_module, "_checkpoint_directory", lambda distributed: destination)
+    resumed = train_module.train(
+        training_conf=training,
+        run_conf=run,
+        resume=milestone,
+        architecture=expectation,
+    )
+    actual_state, actual_model = load_checkpoint(resumed, torch.device("cpu"), training)
+    assert actual_state["step"] == expected_state["step"] == 3
+    for name, expected in expected_model.state_dict().items():
+        torch.testing.assert_close(actual_model.state_dict()[name], expected, rtol=0, atol=0)
+    for actual, expected in zip(
+        actual_state["optimizer"]["state"].values(),
+        expected_state["optimizer"]["state"].values(),
+        strict=True,
+    ):
+        for key in ("step", "exp_avg", "exp_avg_sq"):
+            torch.testing.assert_close(actual[key], expected[key], rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("saved_architecture", ["vanilla", "rope"])
+def test_resume_architecture_conflict_precedes_weight_and_optimizer_loading(
+    tmp_path, resume_environment, saved_architecture
+):
+    checkpoint = tmp_path / "config-only"
+    tiny_model(saved_architecture).config.save_pretrained(checkpoint)
+    requested = "rope" if saved_architecture == "vanilla" else "vanilla"
+
+    with pytest.raises(ValueError, match=f"requested.*{requested}.*saved.*{saved_architecture}"):
+        train_module.train(
+            training_conf=short_training(3),
+            run_conf=short_run(),
+            resume=checkpoint,
+            architecture=requested,
+        )
+
+
+@pytest.mark.parametrize("resume", [False, True])
+def test_train_rejects_unsupported_programmatic_architecture(
+    tmp_path, resume_environment, monkeypatch, resume
+):
+    from ventris.models import create_model
+
+    monkeypatch.setattr(training_run_module, "create_model", create_model)
+    checkpoint = tmp_path / "config-only"
+    tiny_model().config.save_pretrained(checkpoint)
+    with pytest.raises(ValueError, match="unsupported.*architecture.*mla"):
+        train_module.train(
+            training_conf=short_training(3),
+            run_conf=short_run(),
+            resume=checkpoint if resume else None,
+            architecture="mla",
+        )

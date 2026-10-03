@@ -64,11 +64,12 @@ def train(
     resume: Path | None = None,
     *,
     continue_run: bool = False,
+    architecture: str | None = None,
 ) -> Path:
     """Train through ``training_conf.steps`` and return the latest checkpoint."""
     distributed, initialized_here = _initialize_distributed()
     try:
-        return _train(training_conf, run_conf, resume, distributed, continue_run)
+        return _train(training_conf, run_conf, resume, distributed, continue_run, architecture)
     finally:
         if initialized_here:
             dist.destroy_process_group()
@@ -80,6 +81,7 @@ def _train(
     resume: Path | None,
     distributed: DistributedContext,
     continue_run: bool,
+    architecture: str | None,
 ) -> Path:
     # Every process follows this training path. The branches only select
     # multi-process mechanics and primary-process side effects.
@@ -101,6 +103,7 @@ def _train(
         checkpoint_dir=checkpoint_dir,
         resume=resume,
         target=target,
+        architecture=architecture,
     )
 
     batches, accumulation_steps = _prepare_training_batches(

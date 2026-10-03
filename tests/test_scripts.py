@@ -66,6 +66,7 @@ def test_train_help_shows_training_defaults(
 
     assert exit_info.value.code == 0
     help_text = capsys.readouterr().out
+    assert "--architecture {vanilla,rope}" in help_text
     assert "--steps STEPS" in help_text
     assert "(default: 16384)" in help_text
     assert "--validation-interval VALIDATION_INTERVAL" in help_text
@@ -145,4 +146,32 @@ def test_train_rejects_unlisted_argument_abbreviations(
         module.main()
 
     assert exit_info.value.code == 2
+    train.assert_not_called()
+
+
+@pytest.mark.parametrize("architecture", [None, "vanilla", "rope"])
+def test_train_forwards_architecture_selection(monkeypatch, architecture):
+    path, module = load_script("train.py")
+    train = Mock(return_value=Path("latest"))
+    monkeypatch.setattr(module, "train", train)
+    arguments = [str(path)]
+    if architecture is not None:
+        arguments.extend(["--architecture", architecture])
+    monkeypatch.setattr(sys, "argv", arguments)
+
+    module.main()
+
+    assert train.call_args.kwargs["architecture"] == architecture
+
+
+def test_train_rejects_unsupported_architecture_choice(monkeypatch):
+    path, module = load_script("train.py")
+    train = Mock()
+    monkeypatch.setattr(module, "train", train)
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "mla"])
+
+    with pytest.raises(SystemExit) as error:
+        module.main()
+
+    assert error.value.code == 2
     train.assert_not_called()
