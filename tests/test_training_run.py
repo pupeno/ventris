@@ -9,7 +9,7 @@ import ventris.training_run as training_run_module
 from tests.helpers import tiny_model
 from ventris.checkpoint import TRAINING_STATE_FILE, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
-from ventris.model import Ventris
+from ventris.models.vanilla import Ventris
 from ventris.training_run import (
     StepResult,
     TrainingRun,

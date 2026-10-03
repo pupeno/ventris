@@ -7,7 +7,8 @@ import torch
 from transformers import PreTrainedTokenizerFast
 
 from ventris.common import RunConfig, TrainingConfig
-from ventris.model import Ventris
+from ventris.models import load_model
+from ventris.models.vanilla import Ventris
 
 TRAINING_STATE_FILE = "training_state.pt"
 
@@ -22,7 +23,7 @@ def load_checkpoint(
         raise FileNotFoundError(
             f"checkpoint not found at {path}; run scripts/train.py or choose an existing checkpoint"
         )
-    model = Ventris.from_pretrained(path, local_files_only=True)
+    model = load_model(path)
     model.to(target)  # pyright: ignore[reportArgumentType]
     training_state = torch.load(path / TRAINING_STATE_FILE, map_location=target)
     if training_state.get("training_config") != asdict(expected_training_config):

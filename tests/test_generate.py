@@ -4,7 +4,7 @@ from transformers import PreTrainedTokenizerFast
 
 from ventris.data import EOS_TEXT
 from ventris.generate import generate, generate_from_model
-from ventris.model import ModelConfig, Ventris
+from ventris.models.vanilla import ModelConfig, Ventris
 
 
 def tiny_tokenizer() -> PreTrainedTokenizerFast:

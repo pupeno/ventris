@@ -10,7 +10,8 @@ import torch
 
 from ventris.checkpoint import load_checkpoint, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
-from ventris.model import Ventris
+from ventris.models import create_model
+from ventris.models.vanilla import Ventris
 from ventris.reporting import TrainingReporter
 from ventris.training_results import StepResult, ValidationResult
 
@@ -38,7 +39,7 @@ class TrainingState:
     ) -> "TrainingState":
         """Create a fresh state or restore one from a checkpoint."""
         if resume is None:
-            model = Ventris()
+            model = create_model()
             model.to(target)  # pyright: ignore[reportArgumentType]
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             state = cls(checkpoint_dir, model, optimizer)

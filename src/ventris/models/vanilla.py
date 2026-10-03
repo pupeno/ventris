@@ -64,9 +64,6 @@ class ModelConfig(PreTrainedConfig):
         return self.hidden_size // self.num_attention_heads
 
 
-VANILLA_CONFIG = ModelConfig()
-
-
 class Ventris(PreTrainedModel, GenerationMixin):
     """The model. It maps token IDs to next-token logits."""
 

@@ -27,7 +27,7 @@ from ventris.common import (
     mixed_precision,
 )
 from ventris.data import DATA_DIR, load_prepared_data, load_tokenizer
-from ventris.model import Ventris
+from ventris.models.vanilla import Ventris
 from ventris.training_results import StepResult, ValidationResult
 from ventris.training_run import TrainingRun, TrainingState
 

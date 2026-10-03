@@ -1,6 +1,7 @@
+import pytest
 import torch
 
-from ventris.model import ModelConfig, Ventris
+from ventris.models.vanilla import ModelConfig, Ventris
 
 EXPECTED_PARAMETER_COUNT = 124_337_664
 
@@ -44,6 +45,7 @@ def test_token_embedding_is_also_the_output_projection():
     gradient = model.token_embedding.weight.grad
     assert gradient is not None
     assert gradient[7].abs().sum() > 0
+    assert torch.isfinite(gradient).all()
 
 
 def test_tied_embeddings_start_with_moderate_logits():
@@ -76,3 +78,11 @@ def test_default_config_is_the_named_124m_model():
     model = Ventris()
 
     assert sum(parameter.numel() for parameter in model.parameters()) == EXPECTED_PARAMETER_COUNT
+
+
+@pytest.mark.parametrize("shape", [(2, 0), (2, 17), (2, 3, 4)])
+def test_model_rejects_inputs_outside_its_sequence_contract(shape):
+    model = Ventris(tiny_config())
+
+    with pytest.raises(ValueError, match="sequence|shape"):
+        model(torch.zeros(shape, dtype=torch.long))

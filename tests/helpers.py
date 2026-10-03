@@ -1,6 +1,6 @@
 """Small models shared by checkpoint and training tests."""
 
-from ventris.model import ModelConfig, Ventris
+from ventris.models.vanilla import ModelConfig, Ventris
 
 
 def tiny_model() -> Ventris:

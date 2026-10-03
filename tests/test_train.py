@@ -617,7 +617,7 @@ def test_nonfinite_loss_stops_short_training_run_at_initial_checkpoint(tmp_path,
     monkeypatch.setattr(train_module, "DATA_DIR", tmp_path)
     write_tiny_tokenizer(tmp_path)
     monkeypatch.setattr(train_module, "_training_device", lambda: torch.device("cpu"))
-    monkeypatch.setattr(training_run_module, "Ventris", lambda *args: tiny_model())
+    monkeypatch.setattr(training_run_module, "create_model", lambda *args: tiny_model())
     monkeypatch.setattr(train_module, "load_prepared_data", lambda: tiny_data(4))
     monkeypatch.setattr(train_module, "_measure_validation_loss", lambda *args, **kwargs: (1.0, 16))
     monkeypatch.setattr(train_module, "_generate_prompt_samples", lambda *args: [])
@@ -687,7 +687,7 @@ def resume_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(train_module, "DATA_DIR", tmp_path)
     write_tiny_tokenizer(tmp_path)
     monkeypatch.setattr(train_module, "_training_device", lambda: torch.device("cpu"))
-    monkeypatch.setattr(training_run_module, "Ventris", lambda *args: tiny_model())
+    monkeypatch.setattr(training_run_module, "create_model", lambda *args: tiny_model())
     monkeypatch.setattr(train_module, "load_prepared_data", lambda: tiny_data(6))
     monkeypatch.setattr(train_module, "_generate_prompt_samples", lambda *args: [])
     branch_dir = tmp_path / "checkpoints" / "branch"
@@ -781,7 +781,7 @@ def test_validation_interval_also_controls_checkpoint_interval(tmp_path, monkeyp
     monkeypatch.setattr(train_module, "DATA_DIR", tmp_path)
     write_tiny_tokenizer(tmp_path)
     monkeypatch.setattr(train_module, "_training_device", lambda: torch.device("cpu"))
-    monkeypatch.setattr(training_run_module, "Ventris", lambda *args: tiny_model())
+    monkeypatch.setattr(training_run_module, "create_model", lambda *args: tiny_model())
     monkeypatch.setattr(train_module, "load_prepared_data", lambda: tiny_data())
     monkeypatch.setattr(
         train_module,

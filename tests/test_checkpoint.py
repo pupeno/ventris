@@ -14,7 +14,7 @@ from ventris.checkpoint import (
 )
 from ventris.common import RunConfig, TrainingConfig
 from ventris.data import EOS_TEXT
-from ventris.model import Ventris
+from ventris.models.vanilla import Ventris
 
 TRAINING_CONFIG = TrainingConfig(
     steps=4,
@@ -44,12 +44,16 @@ def test_checkpoint_round_trip(tmp_path):
     torch.manual_seed(0)
     model = tiny_model()
     input_ids = torch.randint(32, (2, 8))
+    trained_optimizer = optimizer(model)
+    model(input_ids).logits.square().mean().backward()
+    trained_optimizer.step()
+    trained_optimizer.zero_grad()
     expected = model(input_ids).logits
 
     path = save_checkpoint(
         tmp_path / "latest",
         model,
-        optimizer(model),
+        trained_optimizer,
         step=3,
         training_config=TRAINING_CONFIG,
         run_config=RUN_CONFIG,
@@ -88,6 +92,15 @@ def test_checkpoint_round_trip(tmp_path):
     assert saved_config["num_attention_heads"] == 4
     assert saved_config["intermediate_size"] == 64
     assert saved_config["max_position_embeddings"] == 8
+    assert saved_config["model_type"] == "ventris-vanilla-v1"
+    restored_optimizer = optimizer(restored)
+    restored_optimizer.load_state_dict(training_state["optimizer"])
+    assert restored_optimizer.state
+    for saved_moments, restored_moments in zip(
+        trained_optimizer.state.values(), restored_optimizer.state.values(), strict=True
+    ):
+        for key in ("step", "exp_avg", "exp_avg_sq"):
+            torch.testing.assert_close(restored_moments[key], saved_moments[key])
     assert training_state["step"] == 3
     assert training_state["training_config"] == asdict(TRAINING_CONFIG)
     assert training_state["run_config"] == asdict(RUN_CONFIG)
@@ -100,6 +113,7 @@ def test_load_checkpoint_rejects_missing_model_weights(tmp_path):
     model = tiny_model()
     path = tmp_path / "checkpoint"
     path.mkdir()
+    model.config.save_pretrained(path)
     torch.save({"optimizer": optimizer(model).state_dict()}, path / TRAINING_STATE_FILE)
 
     with pytest.raises(OSError, match="model.safetensors"):
@@ -154,3 +168,10 @@ def test_load_checkpoint_requires_training_config(tmp_path):
 
     with pytest.raises(ValueError, match="training config does not match checkpoint"):
         load_checkpoint(path, torch.device("cpu"), TRAINING_CONFIG)
+
+
+def test_model_only_directory_cannot_resume_training(tmp_path):
+    tiny_model().save_pretrained(tmp_path)
+
+    with pytest.raises(FileNotFoundError, match="training_state.pt"):
+        load_checkpoint(tmp_path, torch.device("cpu"), TRAINING_CONFIG)

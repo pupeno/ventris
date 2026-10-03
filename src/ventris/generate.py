@@ -7,7 +7,8 @@ from transformers import PreTrainedTokenizerFast
 
 from ventris.common import default_device, evaluation_mode, mixed_precision
 from ventris.data import load_tokenizer
-from ventris.model import Ventris
+from ventris.models import load_model
+from ventris.models.vanilla import Ventris
 
 
 def generate(
@@ -20,7 +21,7 @@ def generate(
     seed: int = 0,
 ) -> str:
     """Load a checkpoint and sample one continuation."""
-    model = Ventris.from_pretrained(checkpoint, local_files_only=True)
+    model = load_model(checkpoint)
     model.to(default_device())  # pyright: ignore[reportArgumentType]
     return generate_from_model(
         model,
