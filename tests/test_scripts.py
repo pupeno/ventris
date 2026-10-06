@@ -66,6 +66,7 @@ def test_train_help_shows_training_defaults(
 
     assert exit_info.value.code == 0
     help_text = capsys.readouterr().out
+    assert "--architecture {vanilla,rope}" in help_text
     assert "--steps STEPS" in help_text
     assert "(default: 16384)" in help_text
     assert "--validation-interval VALIDATION_INTERVAL" in help_text
@@ -82,7 +83,7 @@ def test_train_reports_to_wandb_by_default(monkeypatch: pytest.MonkeyPatch) -> N
     path, module = load_script("train.py")
     train = Mock(return_value=Path("latest.pt"))
     monkeypatch.setattr(module, "train", train)
-    monkeypatch.setattr(sys, "argv", [str(path)])
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "vanilla"])
 
     module.main()
 
@@ -97,7 +98,7 @@ def test_train_continue_run_requires_resume_checkpoint(monkeypatch: pytest.Monke
     path, module = load_script("train.py")
     train = Mock(return_value=Path("latest"))
     monkeypatch.setattr(module, "train", train)
-    monkeypatch.setattr(sys, "argv", [str(path), "--continue-run"])
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "vanilla", "--continue-run"])
 
     with pytest.raises(SystemExit) as exit_info:
         module.main()
@@ -113,7 +114,14 @@ def test_train_continue_run_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(
         sys,
         "argv",
-        [str(path), "--resume-checkpoint", "run/step-001000", "--continue-run"],
+        [
+            str(path),
+            "--architecture",
+            "vanilla",
+            "--resume-checkpoint",
+            "run/step-001000",
+            "--continue-run",
+        ],
     )
 
     module.main()
@@ -126,7 +134,7 @@ def test_train_can_explicitly_disable_wandb(monkeypatch: pytest.MonkeyPatch) -> 
     path, module = load_script("train.py")
     train = Mock(return_value=Path("latest.pt"))
     monkeypatch.setattr(module, "train", train)
-    monkeypatch.setattr(sys, "argv", [str(path), "--no-wandb"])
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "vanilla", "--no-wandb"])
 
     module.main()
 
@@ -139,10 +147,61 @@ def test_train_rejects_unlisted_argument_abbreviations(
     path, module = load_script("train.py")
     train = Mock(return_value=Path("latest.pt"))
     monkeypatch.setattr(module, "train", train)
-    monkeypatch.setattr(sys, "argv", [str(path), "--wandb"])
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "vanilla", "--wandb"])
 
     with pytest.raises(SystemExit) as exit_info:
         module.main()
 
     assert exit_info.value.code == 2
+    train.assert_not_called()
+
+
+def test_fresh_training_requires_explicit_architecture(monkeypatch, capsys):
+    path, module = load_script("train.py")
+    train = Mock()
+    monkeypatch.setattr(module, "train", train)
+    monkeypatch.setattr(sys, "argv", [str(path)])
+
+    with pytest.raises(SystemExit) as error:
+        module.main()
+
+    assert error.value.code == 2
+    assert "--architecture or --resume-checkpoint is required" in capsys.readouterr().err
+    train.assert_not_called()
+
+
+def test_resumed_training_can_read_architecture_from_checkpoint(monkeypatch):
+    path, module = load_script("train.py")
+    train = Mock(return_value=Path("latest"))
+    monkeypatch.setattr(module, "train", train)
+    monkeypatch.setattr(sys, "argv", [str(path), "--resume-checkpoint", "run/latest"])
+
+    module.main()
+
+    assert train.call_args.kwargs["resume"] == Path("run/latest")
+    assert train.call_args.kwargs["architecture"] is None
+
+
+@pytest.mark.parametrize("architecture", ["vanilla", "rope"])
+def test_train_forwards_architecture_selection(monkeypatch, architecture):
+    path, module = load_script("train.py")
+    train = Mock(return_value=Path("latest"))
+    monkeypatch.setattr(module, "train", train)
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", architecture])
+
+    module.main()
+
+    assert train.call_args.kwargs["architecture"] == architecture
+
+
+def test_train_rejects_unsupported_architecture_choice(monkeypatch):
+    path, module = load_script("train.py")
+    train = Mock()
+    monkeypatch.setattr(module, "train", train)
+    monkeypatch.setattr(sys, "argv", [str(path), "--architecture", "mla"])
+
+    with pytest.raises(SystemExit) as error:
+        module.main()
+
+    assert error.value.code == 2
     train.assert_not_called()

@@ -9,8 +9,6 @@ from datasets import Dataset, DatasetDict, Features, List, Value, load_dataset, 
 from tokenizers import AddedToken, Tokenizer, decoders, models, pre_tokenizers, trainers
 from transformers import PreTrainedTokenizerFast
 
-from ventris.model import VANILLA_CONFIG
-
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 CORPUS_REPOSITORY = "HuggingFaceFW/fineweb-edu"
@@ -19,8 +17,8 @@ CORPUS_REVISION = "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9"
 VALIDATION_FRACTION = 0.01
 DATA_SEED = 0
 
-VOCAB_SIZE = VANILLA_CONFIG.vocab_size
-SEQUENCE_LENGTH = VANILLA_CONFIG.max_position_embeddings
+VOCAB_SIZE = 50_257
+SEQUENCE_LENGTH = 1_024
 EOS_TEXT = "<|endoftext|>"
 
 # Heuristic guesses; these tokenizer-training sample limits have not been tuned.

@@ -15,7 +15,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.414",
+    "basedpyright==1.40.1",
     "pytest>=8",
     "ruff>=0.9",
 ]
@@ -36,3 +36,16 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "UP"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["wandb"]
+
+[tool.basedpyright]
+include = ["src", "scripts", "tests"]
+typeCheckingMode = "standard"
+reportMissingTypeStubs = "error"
+reportMissingTypeArgument = "error"
+reportPrivateLocalImportUsage = "error"
+failOnWarnings = true
+# Hugging Face Datasets does not ship typing metadata; Ventris itself must provide it.
+allowedUntypedLibraries = ["datasets"]
