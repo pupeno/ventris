@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train Ventris Vanilla 124M Base."""
+"""Train a Ventris Base model."""
 
 import argparse
 import os
@@ -31,6 +31,7 @@ def main() -> None:
         run_conf=run_conf,
         resume=arguments.resume_checkpoint,
         continue_run=arguments.continue_run,
+        architecture=arguments.architecture,
     )
     if int(os.environ.get("RANK", "0")) == 0:
         print(checkpoint)
@@ -43,6 +44,12 @@ def _parse_arguments() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         allow_abbrev=False,
+    )
+    parser.add_argument(
+        "--architecture",
+        choices=("vanilla", "rope"),
+        default=None,
+        help="model architecture; required for fresh training",
     )
     parser.add_argument(
         "--device-batch-size",
@@ -108,6 +115,8 @@ def _parse_arguments() -> argparse.Namespace:
     arguments = parser.parse_args()
     if arguments.continue_run and arguments.resume_checkpoint is None:
         parser.error("--continue-run requires --resume-checkpoint")
+    if arguments.architecture is None and arguments.resume_checkpoint is None:
+        parser.error("--architecture or --resume-checkpoint is required")
 
     return arguments
 

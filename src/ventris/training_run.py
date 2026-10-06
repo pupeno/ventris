@@ -10,7 +10,7 @@ import torch
 
 from ventris.checkpoint import load_checkpoint, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
-from ventris.model import Ventris
+from ventris.models import Model, create_model
 from ventris.reporting import TrainingReporter
 from ventris.training_results import StepResult, ValidationResult
 
@@ -20,7 +20,7 @@ class TrainingState:
     """The model and mutable progress needed to continue training."""
 
     checkpoint_dir: Path
-    model: Ventris
+    model: Model
     optimizer: torch.optim.AdamW
     completed_steps: int = 0
     training_seconds_elapsed: float = 0.0
@@ -35,15 +35,20 @@ class TrainingState:
         checkpoint_dir: Path,
         resume: Path | None,
         target: torch.device,
+        architecture: str | None = None,
     ) -> "TrainingState":
         """Create a fresh state or restore one from a checkpoint."""
         if resume is None:
-            model = Ventris()
+            if architecture is None:
+                raise ValueError("architecture is required for fresh training")
+            model = create_model(architecture)
             model.to(target)  # pyright: ignore[reportArgumentType]
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             state = cls(checkpoint_dir, model, optimizer)
         else:
-            training_state, model = load_checkpoint(resume, target, training_conf)
+            training_state, model = load_checkpoint(
+                resume, target, training_conf, expected_architecture=architecture
+            )
             optimizer = build_optimizer(model, training_conf.peak_learning_rate)
             optimizer.load_state_dict(training_state["optimizer"])
             saved_best_loss = training_state.get("best_validation_loss")
@@ -100,6 +105,10 @@ class TrainingRun:
                 run_id=state.checkpoint_dir.name,
                 config={
                     **state.model.config.shape_dict(),
+                    "model_type": state.model.config.model_type,
+                    "parameter_count": sum(
+                        parameter.numel() for parameter in state.model.parameters()
+                    ),
                     **asdict(training_conf),
                     **asdict(run_conf),
                     "world_size": world_size,

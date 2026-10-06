@@ -5,9 +5,9 @@ from contextlib import ExitStack
 from pathlib import Path
 from types import TracebackType
 
+import wandb
 from tqdm import tqdm
 
-import wandb
 from ventris.training_results import StepResult, ValidationResult
 
 _PROGRESS_BAR_FORMAT = (
@@ -57,6 +57,9 @@ class TrainingReporter:
         self._validation_tokens_completed = 0
 
     def __enter__(self) -> "TrainingReporter":
+        print(
+            f"Model: {self.config['model_type']} | Parameters: {self.config['parameter_count']:,}"
+        )
         self._start_tracking()
         self._open_progress_bars()
         return self

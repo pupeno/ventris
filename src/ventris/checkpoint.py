@@ -2,12 +2,13 @@
 
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import torch
 from transformers import PreTrainedTokenizerFast
 
 from ventris.common import RunConfig, TrainingConfig
-from ventris.model import Ventris
+from ventris.models import Model, load_model
 
 TRAINING_STATE_FILE = "training_state.pt"
 
@@ -16,13 +17,15 @@ def load_checkpoint(
     path: Path,
     target: torch.device,
     expected_training_config: TrainingConfig,
-) -> tuple[dict, Ventris]:
+    *,
+    expected_architecture: str | None = None,
+) -> tuple[dict[str, Any], Model]:
     """Load a checkpoint and verify its training configuration."""
     if not path.is_dir():
         raise FileNotFoundError(
             f"checkpoint not found at {path}; run scripts/train.py or choose an existing checkpoint"
         )
-    model = Ventris.from_pretrained(path, local_files_only=True)
+    model = load_model(path, expected_architecture=expected_architecture)
     model.to(target)  # pyright: ignore[reportArgumentType]
     training_state = torch.load(path / TRAINING_STATE_FILE, map_location=target)
     if training_state.get("training_config") != asdict(expected_training_config):
@@ -32,7 +35,7 @@ def load_checkpoint(
 
 def save_checkpoint(
     path: Path,
-    model: Ventris,
+    model: Model,
     optimizer: torch.optim.Optimizer,
     step: int,
     *,
