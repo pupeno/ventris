@@ -21,5 +21,3 @@ Read README.md to orient yourself, learn what checks to run, how to activate the
 Order functions and methods outside in: high-level entry points and orchestration first, followed by the helpers they call, then lower-level details. A linear read should establish the big picture before the implementation details.
 
 Before declaring a task finished, and before making commits, make sure all formatting and checks pass. Run tests only when necessary (comment changes don't affect tests))
-
-If you are about to put files in /tmp, put them in this repo's tmp instead, so it's easy to read them.
