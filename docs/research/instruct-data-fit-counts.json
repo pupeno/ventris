@@ -1,0 +1,347 @@
+{
+  "dataset": "HuggingFaceTB/smol-smoltalk",
+  "revision": "f73fe857d519ff6ac5af2ea67c4d3834da7b8bcc",
+  "tokenizer_sha256": "93b16d61c86d7905c98cfc5e30b7bf2f751d8f369a861cedb5fa1cf6f9faa422",
+  "vocab_size": 50257,
+  "eos_id": 50256,
+  "train_limit": 115086,
+  "splits": {
+    "train": {
+      "file_rows": 115086,
+      "scanned": 115086,
+      "role_patterns": {
+        "user/assistant/user/assistant/user/assistant": 67695,
+        "user/assistant": 29252,
+        "system/user/assistant": 16719,
+        "system/user/assistant/user/assistant/user/assistant": 84,
+        "system/user/assistant/user/assistant": 77,
+        "user/assistant/user/assistant/user/assistant/user": 58,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 284,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant": 116,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 29,
+        "user/assistant/user/assistant/user/assistant/user/assistant": 457,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 55,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 86,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 90,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 32,
+        "user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 6,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 8,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 18,
+        "user/assistant/user/assistant": 16,
+        "user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 1,
+        "user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 3
+      },
+      "sources": {
+        "smol-magpie-ultra-short": 67651,
+        "smol-contraints": 8644,
+        "self-oss-instruct": 11945,
+        "smollm-rewrite-30k": 6768,
+        "openhermes-50k": 11977,
+        "smol-summarize-20k": 4774,
+        "longalign": 860,
+        "explore-instruct-rewrite": 794,
+        "smol-summarize-5k": 1116,
+        "everyday-conversations": 557
+      },
+      "natural_single_turn_nonempty": 45971,
+      "natural_sources": {
+        "smol-contraints": 8644,
+        "self-oss-instruct": 11945,
+        "smollm-rewrite-30k": 6768,
+        "openhermes-50k": 11949,
+        "smol-summarize-20k": 4774,
+        "longalign": 860,
+        "explore-instruct-rewrite": 794,
+        "smol-summarize-5k": 237
+      },
+      "empty_natural_records": 0,
+      "eligible_at_1024": 43799,
+      "eligible_sources": {
+        "smol-contraints": 8626,
+        "self-oss-instruct": 11848,
+        "smollm-rewrite-30k": 6768,
+        "openhermes-50k": 11460,
+        "smol-summarize-20k": 4066,
+        "explore-instruct-rewrite": 794,
+        "smol-summarize-5k": 237
+      },
+      "fit_counts": {
+        "768": 42476,
+        "896": 43271,
+        "960": 43560,
+        "1024": 43799
+      },
+      "natural_length_quantiles": {
+        "0": 33,
+        "0.25": 207,
+        "0.5": 305,
+        "0.75": 452,
+        "0.9": 666,
+        "0.95": 988,
+        "0.99": 10905,
+        "1": 31322
+      },
+      "eligible_duplicate_exact_prompts": 371,
+      "eligible_duplicate_exact_records": 21,
+      "eligible_unique_exact_prompts": 43428,
+      "eligible_unique_exact_records": 43778,
+      "samples": {
+        "smol-contraints": [
+          {
+            "row_index": 91241,
+            "tokens": 205,
+            "record_sha256": "0004ca099382bf93859fbab44776305bd74f7164ac896f19ae0deb1ccaa0377f"
+          },
+          {
+            "row_index": 3272,
+            "tokens": 169,
+            "record_sha256": "000dd3ad6da6598f477ee7b3d68a737582f77c62e0a580c214a7c3ca007108b5"
+          }
+        ],
+        "self-oss-instruct": [
+          {
+            "row_index": 77237,
+            "tokens": 532,
+            "record_sha256": "000025a1e1d25bbb8e23cb510c9fba8731a8bf29cfb61e277aa766dfbc810ac7"
+          },
+          {
+            "row_index": 65592,
+            "tokens": 530,
+            "record_sha256": "00043b0e78444961ca944a1abe3f43c02b914bfb98e58aa69b2e8f037fccd027"
+          }
+        ],
+        "smollm-rewrite-30k": [
+          {
+            "row_index": 6277,
+            "tokens": 486,
+            "record_sha256": "000dd663c64ebb9f8191bd5ee52c93df64ae8f363ddc8835e48828c54db798a8"
+          },
+          {
+            "row_index": 109218,
+            "tokens": 555,
+            "record_sha256": "0020063b20a8988bd187d14975939785876fdb0bb3033d22f6208ef91f1c89d4"
+          }
+        ],
+        "openhermes-50k": [
+          {
+            "row_index": 68989,
+            "tokens": 458,
+            "record_sha256": "00082633320b8d8d48a4d65411f917c56b3fc618853ea6ae73f170a809ae35e6"
+          },
+          {
+            "row_index": 67230,
+            "tokens": 592,
+            "record_sha256": "000ad92707361fb7b97c4dcf50ea73bb8acc0bca9491ac51c3a4d28f3ecfcc5a"
+          }
+        ],
+        "smol-summarize-20k": [
+          {
+            "row_index": 14066,
+            "tokens": 550,
+            "record_sha256": "00118464758f48de123fb95d23e26b01acb1aff2e9a0129d7b37e60d5bd4d17f"
+          },
+          {
+            "row_index": 62445,
+            "tokens": 376,
+            "record_sha256": "003a13890f68fc8fe807cf6126fbf78b1df14f96087f0720ae97c17991193d08"
+          }
+        ],
+        "explore-instruct-rewrite": [
+          {
+            "row_index": 62008,
+            "tokens": 86,
+            "record_sha256": "00147d638c81d5c267c8c416c2bc245fb3cb94947cc95b7b441386ce70bfe07f"
+          },
+          {
+            "row_index": 6505,
+            "tokens": 99,
+            "record_sha256": "0064fbd83baca07d0ee6f8365d7b5d0275c1270e1bcb81aa7205dd348b77b498"
+          }
+        ],
+        "smol-summarize-5k": [
+          {
+            "row_index": 49814,
+            "tokens": 405,
+            "record_sha256": "002636686688cdc437973b9dc7ef3d1830c5dcab628f0bf402e60240c4dee699"
+          },
+          {
+            "row_index": 51259,
+            "tokens": 656,
+            "record_sha256": "00960f115926ab91a834fbf09ad62892c648b630f3a642961ff9e1b276349fda"
+          }
+        ]
+      },
+      "file_sha256": "498cd4580014f42c40cfde066573564ed28e3e1548a5566715b615f5ea932856",
+      "file": "train-00000-of-00004.parquet"
+    },
+    "test": {
+      "file_rows": 24229,
+      "scanned": 24229,
+      "role_patterns": {
+        "system/user/assistant": 3513,
+        "user/assistant/user/assistant/user/assistant": 14178,
+        "user/assistant/user/assistant/user/assistant/user/assistant": 102,
+        "user/assistant": 6220,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant": 31,
+        "system/user/assistant/user/assistant": 16,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 24,
+        "system/user/assistant/user/assistant/user/assistant": 22,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 4,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 50,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 16,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 19,
+        "user/assistant/user/assistant/user/assistant/user": 10,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 11,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 5,
+        "user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 2,
+        "user/assistant/user/assistant": 2,
+        "user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 1,
+        "system/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant/user/assistant": 3
+      },
+      "sources": {
+        "smol-summarize-20k": 1013,
+        "smol-magpie-ultra-short": 14162,
+        "everyday-conversations": 127,
+        "self-oss-instruct": 2590,
+        "smol-contraints": 1803,
+        "openhermes-50k": 2508,
+        "smollm-rewrite-30k": 1418,
+        "smol-summarize-5k": 251,
+        "longalign": 174,
+        "explore-instruct-rewrite": 183
+      },
+      "natural_single_turn_nonempty": 9733,
+      "natural_sources": {
+        "smol-summarize-20k": 1013,
+        "self-oss-instruct": 2590,
+        "smol-contraints": 1803,
+        "openhermes-50k": 2502,
+        "smollm-rewrite-30k": 1418,
+        "longalign": 174,
+        "explore-instruct-rewrite": 183,
+        "smol-summarize-5k": 50
+      },
+      "empty_natural_records": 0,
+      "eligible_at_1024": 9268,
+      "eligible_sources": {
+        "smol-summarize-20k": 856,
+        "self-oss-instruct": 2574,
+        "smol-contraints": 1799,
+        "openhermes-50k": 2389,
+        "smollm-rewrite-30k": 1418,
+        "explore-instruct-rewrite": 183,
+        "smol-summarize-5k": 49
+      },
+      "fit_counts": {
+        "768": 8981,
+        "896": 9154,
+        "960": 9219,
+        "1024": 9268
+      },
+      "natural_length_quantiles": {
+        "0": 40,
+        "0.25": 206,
+        "0.5": 304,
+        "0.75": 447,
+        "0.9": 668,
+        "0.95": 992,
+        "0.99": 10759,
+        "1": 32819
+      },
+      "eligible_duplicate_exact_prompts": 49,
+      "eligible_duplicate_exact_records": 1,
+      "eligible_unique_exact_prompts": 9219,
+      "eligible_unique_exact_records": 9267,
+      "samples": {
+        "smol-summarize-20k": [
+          {
+            "row_index": 9915,
+            "tokens": 218,
+            "record_sha256": "000a66aedb8dbeba3d479f4812bbce37bc244530a0b2cda5a7ea9be353a65ece"
+          },
+          {
+            "row_index": 664,
+            "tokens": 214,
+            "record_sha256": "002ae9f8dbb1319074f0735e84c3072ec057a7f3f876643f69b06bed5d7ec2e6"
+          }
+        ],
+        "self-oss-instruct": [
+          {
+            "row_index": 18883,
+            "tokens": 225,
+            "record_sha256": "00098d0bf26ce8bab399b9cbd3aca49904076ecfb60accb776bbcff3cec61992"
+          },
+          {
+            "row_index": 12717,
+            "tokens": 205,
+            "record_sha256": "003c9431a86e50d2c0008beadf1a1d1e36e8e8452559e5ecd6dde0b4bdef6f1b"
+          }
+        ],
+        "smol-contraints": [
+          {
+            "row_index": 6997,
+            "tokens": 135,
+            "record_sha256": "0002766422a22bd6b581f5cd778ffb87dafbb16c08a3868c2de38f77c2604cc8"
+          },
+          {
+            "row_index": 4198,
+            "tokens": 234,
+            "record_sha256": "000b200f9231290140114dd9efe47ac859bc74164596d7672c70a798dbfad211"
+          }
+        ],
+        "openhermes-50k": [
+          {
+            "row_index": 5306,
+            "tokens": 406,
+            "record_sha256": "00016cdfdfe785b0a462aba984f4d76ae247205fa21ebf3f64d29c3946c9e425"
+          },
+          {
+            "row_index": 2046,
+            "tokens": 258,
+            "record_sha256": "001fbb78063160df13474a3cb9105c898a9f1ea4112ae022e7ca0e25c2d126cf"
+          }
+        ],
+        "smollm-rewrite-30k": [
+          {
+            "row_index": 8719,
+            "tokens": 194,
+            "record_sha256": "00357f2f7dc56128d7df5b2278f2d9a605fb005917f28e1570e9a109d77d8fce"
+          },
+          {
+            "row_index": 14224,
+            "tokens": 295,
+            "record_sha256": "004d72ce30926f910ca1e40041930d46bc376b2dc665111df77ea61de4b9a644"
+          }
+        ],
+        "explore-instruct-rewrite": [
+          {
+            "row_index": 22849,
+            "tokens": 88,
+            "record_sha256": "002000232a871e63e9eb953330db07c3179afac8f7419a6b755d8c7b89f6bef5"
+          },
+          {
+            "row_index": 16338,
+            "tokens": 46,
+            "record_sha256": "014ef71df22ed5d32e9082c88a0e69d5d38bc63fe37a5fb9b989ff579763d38c"
+          }
+        ],
+        "smol-summarize-5k": [
+          {
+            "row_index": 7677,
+            "tokens": 451,
+            "record_sha256": "1188b6635b3b4b170d55502445d3c31f453db7a1f46e67cac85a7ffa4d74ae7a"
+          },
+          {
+            "row_index": 22209,
+            "tokens": 148,
+            "record_sha256": "12e35ee40ef0edb17d59759c4e8c298068cfa0004f23d5732b0c7917f8a19e43"
+          }
+        ]
+      },
+      "file_sha256": "be6773dcce145f3918ff14237b1f765affa427b0b13f6a02d397e665ac908b9a",
+      "file": "test-00000-of-00001.parquet"
+    }
+  },
+  "cross_split_eligible_exact_prompt_overlap": 87,
+  "cross_split_eligible_exact_record_overlap": 5
+}
