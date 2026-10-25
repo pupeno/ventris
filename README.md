@@ -101,9 +101,23 @@ scripts/generate.py \
   --prompt "The purpose of education is"
 ```
 
+## Evaluate on PIQA
+
+Evaluate one model on all 1,838 labeled PIQA validation questions, zero-shot:
+
+```console
+scripts/evaluate.py --checkpoint models:/ventris-vanilla-v1@selected
+scripts/evaluate.py --checkpoint models:/ventris-rope-v1@selected
+scripts/evaluate.py --hf-model openai-community/gpt2 --hf-revision 607a30d783dfa663caf39e06633721c8d4cfcd7e
+```
+
+Exact `models:/MODEL_ID` checkpoint references also work. Each invocation prints a new MLflow evaluation run ID. Compare `piqa/acc` and `piqa/acc_norm` (answer-character-normalized accuracy) in the `ventris` experiment. The artifacts contain aggregate results, every question's candidate scores and correct answer, and the resolved model/tokenizer, dataset, and execution configuration. GPT-2 weights stay in the Hugging Face cache; evaluations reuse their external MLflow model identity.
+
+The dataset revision and harness are pinned. Evaluation uses each model's own tokenizer and context, without a chat template; this compares complete models on PIQA validation, not the test leaderboard or general model quality. See `scripts/evaluate.py --help` for device, precision, device batch size, and local tracking options.
+
 ## MLflow
 
-Training tracks runs and checkpoints locally in `data/mlflow/` by default, without a running service. W&B is off by default. Use `--no-mlflow`, `--mlflow-root DIRECTORY`, or `--wandb-project PROJECT` to change reporting; see `scripts/train.py --help` for options.
+Training tracks runs and checkpoints locally in `data/mlflow/` by default, without a running service.
 
 Start the UI when needed:
 
@@ -111,9 +125,21 @@ Start the UI when needed:
 mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
 ```
 
-Open http://localhost:5000 and select `ventris`. MLflow's built-in `Default` experiment can stay empty. For a browser on the native Linux Docker host, add `--host 0.0.0.0 --cors-allowed-origins http://CONTAINER_IP:5000` and open that address; `hostname -I` inside the container prints its IP.
+Open http://localhost:5000 and select `ventris`.
 
 Training prints run IDs and `models:/MODEL_ID` checkpoint references. Generation also accepts native registry aliases such as `models:/ventris-rope-v1@selected`.
+
+### Compare evaluation results
+
+Choose **Model training → ventris → Runs** and filter with `params.dataset_repository = 'baber/piqa'`. Run names identify the models.
+
+For overall scores, use **Columns** to show `piqa/acc` and `piqa/acc_norm`. Select the runs and click **Compare** for scores side by side.
+
+For individual answers, click **Artifact evaluation** (the third view icon beside search):
+
+1. Select **Table: piqa_questions.json**.
+2. Under **Group by**, select `question_id`, `question`, and `correct_answer`.
+3. Under **Compare**, choose `prediction` or `normalized_prediction` for answers, or `correct` or `normalized_correct` for successes and errors.
 
 ## Fix formatting
 

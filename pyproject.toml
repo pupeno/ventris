@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=4.0",
+    "lm-eval[hf]",
     "mlflow>=3.17,<4",
     "tokenizers==0.23.2",
     "torch>=2.9",
@@ -50,3 +51,6 @@ reportPrivateLocalImportUsage = "error"
 failOnWarnings = true
 # Hugging Face Datasets does not ship typing metadata; Ventris itself must provide it.
 allowedUntypedLibraries = ["datasets"]
+
+[tool.uv.sources]
+lm-eval = { git = "https://github.com/EleutherAI/lm-evaluation-harness.git", rev = "d6de81643928d653435c431bae19945d41d32520" }
