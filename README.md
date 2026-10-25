@@ -118,7 +118,7 @@ The dataset revision and harness are pinned. Evaluation uses each model's own to
 
 ## MLflow
 
-Training tracks runs and checkpoints locally in `data/mlflow/` by default, without a running service. W&B is off by default. Use `--no-mlflow`, `--mlflow-root DIRECTORY`, or `--wandb-project PROJECT` to change reporting; see `scripts/train.py --help` for options.
+Training tracks runs and checkpoints locally in `data/mlflow/` by default, without a running service.
 
 Start the UI when needed:
 
@@ -126,7 +126,7 @@ Start the UI when needed:
 mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
 ```
 
-Open http://localhost:5000 and select `ventris`. MLflow's built-in `Default` experiment can stay empty. For a browser on the native Linux Docker host, add `--host 0.0.0.0 --cors-allowed-origins http://CONTAINER_IP:5000` and open that address; `hostname -I` inside the container prints its IP.
+Open http://localhost:5000 and select `ventris`.
 
 Training prints run IDs and `models:/MODEL_ID` checkpoint references. Generation also accepts native registry aliases such as `models:/ventris-rope-v1@selected`.
 
