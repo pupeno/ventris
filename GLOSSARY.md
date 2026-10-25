@@ -23,10 +23,10 @@ A saved snapshot of a model and its training state at a particular training step
 _Avoid_: Version when referring to a particular set of saved weights
 
 **Resume**:
-Continue an existing training run from a checkpoint, preserving the run's identity.
+Continue an interrupted training run from its latest checkpoint, preserving the run's identity.
 
 **Fork**:
-Start a new training run from an existing checkpoint, preserving the source run's history.
+Start a new training run from a chosen checkpoint to conduct an experiment, preserving the source run's history.
 
 **Effective batch**:
 The complete set of training sequences whose gradients contribute to one optimizer update.
