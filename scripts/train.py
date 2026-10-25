@@ -4,7 +4,6 @@
 import argparse
 import os
 from dataclasses import replace
-from pathlib import Path
 
 from ventris.common import DEFAULT_RUN_CONFIG, DEFAULT_TRAINING_CONFIG
 from ventris.train import train
@@ -17,6 +16,8 @@ def main() -> None:
         DEFAULT_TRAINING_CONFIG,
         steps=arguments.steps,
         seed=arguments.seed,
+        warmup_steps=arguments.warmup_steps,
+        effective_batch_size=arguments.effective_batch_size,
     )
     run_conf = replace(
         DEFAULT_RUN_CONFIG,
@@ -25,11 +26,13 @@ def main() -> None:
         milestone_interval_checkpoints=arguments.milestone_interval,
         compile_model=arguments.compile,
         wandb_project=arguments.wandb_project,
+        mlflow_root=arguments.mlflow_root,
+        validation_tokens=arguments.validation_tokens,
     )
     checkpoint = train(
         training_conf=training_conf,
         run_conf=run_conf,
-        resume=arguments.resume_checkpoint,
+        fork_checkpoint=arguments.fork_checkpoint,
         continue_run=arguments.continue_run,
         architecture=arguments.architecture,
     )
@@ -61,7 +64,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--steps",
         type=int,
         default=training_defaults.steps,
-        help="total optimizer steps, including steps from a resumed checkpoint",
+        help="total optimizer steps, including completed steps in the starting checkpoint",
     )
     parser.add_argument(
         "--validation-interval",
@@ -74,7 +77,7 @@ def _parse_arguments() -> argparse.Namespace:
         type=int,
         default=run_defaults.milestone_interval_checkpoints,
         metavar="CHECKPOINTS",
-        help="scheduled validation checkpoints between retained, resumable milestones",
+        help="scheduled validation checkpoints between retained checkpoints available for forking",
     )
     parser.add_argument(
         "--seed",
@@ -82,19 +85,48 @@ def _parse_arguments() -> argparse.Namespace:
         default=training_defaults.seed,
         help="model initialization and training data order seed",
     )
-    parser.add_argument(
-        "--resume-checkpoint",
-        type=Path,
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--fork-checkpoint",
         metavar="CHECKPOINT",
-        help=(
-            "checkpoint from which to resume training, for example "
-            "data/checkpoints/2026-09-20_14-30-00/latest"
-        ),
+        help="fork a models:/ reference, registry alias, or local checkpoint into a new run",
+    )
+    source.add_argument(
+        "--continue-run",
+        metavar="RUN_ID",
+        help="continue an interrupted MLflow run automatically from its latest checkpoint",
     )
     parser.add_argument(
-        "--continue-run",
-        action="store_true",
-        help="write resumed checkpoints into the source run directory",
+        "--warmup-steps",
+        type=int,
+        default=training_defaults.warmup_steps,
+        help="optimizer steps of learning-rate warmup",
+    )
+    parser.add_argument(
+        "--effective-batch-size",
+        type=int,
+        default=training_defaults.effective_batch_size,
+        help="sequences per optimizer step across all devices",
+    )
+    parser.add_argument(
+        "--validation-tokens",
+        type=int,
+        default=run_defaults.validation_tokens,
+        help="token budget per validation pass",
+    )
+    tracking = parser.add_mutually_exclusive_group()
+    tracking.add_argument(
+        "--mlflow-root",
+        default=run_defaults.mlflow_root,
+        help="local SQLite and artifact directory",
+    )
+    tracking.add_argument(
+        "--no-mlflow",
+        dest="mlflow_root",
+        action="store_const",
+        const=None,
+        default=argparse.SUPPRESS,
+        help="disable MLflow tracking and save local checkpoints",
     )
     parser.add_argument("--compile", action="store_true", help="use torch.compile")
     wandb = parser.add_mutually_exclusive_group()
@@ -113,10 +145,12 @@ def _parse_arguments() -> argparse.Namespace:
         help="disable Weights & Biases reporting",
     )
     arguments = parser.parse_args()
-    if arguments.continue_run and arguments.resume_checkpoint is None:
-        parser.error("--continue-run requires --resume-checkpoint")
-    if arguments.architecture is None and arguments.resume_checkpoint is None:
-        parser.error("--architecture or --resume-checkpoint is required")
+    if (
+        arguments.architecture is None
+        and arguments.fork_checkpoint is None
+        and arguments.continue_run is None
+    ):
+        parser.error("--architecture, --fork-checkpoint, or --continue-run is required")
 
     return arguments
 

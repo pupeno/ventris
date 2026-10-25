@@ -5,13 +5,18 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import TracebackType
+from uuid import uuid4
 
+import mlflow
 import torch
+from mlflow import MlflowClient
+from mlflow.entities import LoggedModelOutput
 
 from ventris.checkpoint import load_checkpoint, save_checkpoint
 from ventris.common import RunConfig, TrainingConfig
 from ventris.models import Model, create_model
 from ventris.reporting import TrainingReporter
+from ventris.tracking import local_artifact_path, prune_checkpoint
 from ventris.training_results import StepResult, ValidationResult
 
 
@@ -81,7 +86,10 @@ class TrainingRun:
         world_size: int,
         is_primary: bool,
         tokenizer_dir: Path,
+        continue_run: str | None = None,
+        source_checkpoint: str | None = None,
     ) -> None:
+        self.continue_run = continue_run
         self.state = state
         self.training_conf = training_conf
         self.run_conf = run_conf
@@ -90,6 +98,7 @@ class TrainingRun:
         self.latest_checkpoint = state.checkpoint_dir / "latest"
         self.best_checkpoint = state.checkpoint_dir / "best"
         self._reporter = None
+        self._latest_model_id: str | None = None
         if is_primary:
             tokens_per_step = (
                 training_conf.effective_batch_size * state.model.config.max_position_embeddings
@@ -103,6 +112,9 @@ class TrainingRun:
                 tokens_per_step=tokens_per_step,
                 wandb_project=run_conf.wandb_project,
                 run_id=state.checkpoint_dir.name,
+                mlflow_root=run_conf.mlflow_root,
+                continue_run=continue_run,
+                source_checkpoint=source_checkpoint,
                 config={
                     **state.model.config.shape_dict(),
                     "model_type": state.model.config.model_type,
@@ -117,6 +129,18 @@ class TrainingRun:
 
     def __enter__(self) -> "TrainingRun":
         if self._reporter is not None:
+            if self.continue_run is not None:
+                tags = MlflowClient().get_run(self.continue_run).data.tags
+                self._latest_model_id = tags["ventris.latest_checkpoint"]
+                self.latest_checkpoint = local_artifact_path(
+                    MlflowClient().get_logged_model(self._latest_model_id).artifact_location
+                )
+                if "ventris.best_checkpoint" in tags:
+                    self.best_checkpoint = local_artifact_path(
+                        MlflowClient()
+                        .get_logged_model(tags["ventris.best_checkpoint"])
+                        .artifact_location
+                    )
             self._reporter.__enter__()
         return self
 
@@ -160,7 +184,8 @@ class TrainingRun:
             validation=validation,
             training_seconds_elapsed=self.state.training_seconds_elapsed,
         )
-        self._save_validation_checkpoint(validation)
+        if self.continue_run is None:
+            self._save_validation_checkpoint(validation)
 
     def step_completed(
         self,
@@ -196,7 +221,13 @@ class TrainingRun:
         path = self.state.checkpoint_dir / f"step-{self.state.completed_steps:06d}"
         if path.exists():
             raise FileExistsError(f"milestone checkpoint already exists: {path}")
-        shutil.copytree(self.latest_checkpoint, path)
+        if self._latest_model_id is not None:
+            MlflowClient().set_logged_model_tags(
+                self._latest_model_id, {"ventris.milestone": "true"}
+            )
+            path = self.latest_checkpoint
+        else:
+            _reference_checkpoint(self.latest_checkpoint, path)
         assert self._reporter is not None
         self._reporter.milestone_checkpoint_retained(path, step=self.state.completed_steps)
 
@@ -211,8 +242,32 @@ class TrainingRun:
             self.state.best_validation_step = self.state.completed_steps
 
         checkpoint_started = time.perf_counter()
+        previous: set[str] = set()
+        logged_model = None
+        if self.run_conf.mlflow_root is not None:
+            assert self._reporter is not None
+            run_id = self._reporter.mlflow_run_id
+            assert run_id is not None
+            tags = MlflowClient().get_run(run_id).data.tags
+            previous = {
+                tags[key]
+                for key in ("ventris.latest_checkpoint", "ventris.best_checkpoint")
+                if key in tags
+            }
+            logged_model = mlflow.initialize_logged_model(
+                name=f"{self.state.model.config.model_type}-step-{self.state.completed_steps:06d}",
+                model_type=self.state.model.config.model_type,
+                source_run_id=run_id,
+                tags={"ventris.step": str(self.state.completed_steps)},
+            )
+            destination = local_artifact_path(logged_model.artifact_location)
+        else:
+            destination = (
+                self.state.checkpoint_dir
+                / f"snapshot-{self.state.completed_steps:06d}-{uuid4().hex[:8]}"
+            )
         save_checkpoint(
-            self.latest_checkpoint,
+            destination,
             self.state.model,
             self.state.optimizer,
             self.state.completed_steps,
@@ -223,17 +278,55 @@ class TrainingRun:
             best_validation_loss=self.state.best_validation_loss,
             best_validation_step=self.state.best_validation_step,
         )
+        if logged_model is not None:
+            assert logged_model.source_run_id is not None
+            mlflow.finalize_logged_model(logged_model.model_id, "READY")
+            MlflowClient().log_outputs(
+                logged_model.source_run_id,
+                [LoggedModelOutput(logged_model.model_id, self.state.completed_steps)],
+            )
+            MlflowClient().log_metric(
+                logged_model.source_run_id,
+                "checkpoint/validation_loss",
+                validation.loss,
+                step=self.state.completed_steps,
+                model_id=logged_model.model_id,
+                synchronous=True,
+            )
+            self._latest_model_id = logged_model.model_id
+            print(f"Checkpoint: models:/{logged_model.model_id}")
+            self.latest_checkpoint = destination
+            mlflow.set_tag("ventris.latest_checkpoint", logged_model.model_id)
+            if is_best:
+                mlflow.set_tag("ventris.best_checkpoint", logged_model.model_id)
+                self.best_checkpoint = destination
+            current = MlflowClient().get_run(logged_model.source_run_id).data.tags
+            for obsolete in previous - {
+                current.get("ventris.latest_checkpoint"),
+                current.get("ventris.best_checkpoint"),
+            }:
+                prune_checkpoint(obsolete)
+        else:
+            _reference_checkpoint(destination, self.latest_checkpoint)
         checkpoint_seconds = time.perf_counter() - checkpoint_started
         assert self._reporter is not None
         self._reporter.checkpoint_saved(self.latest_checkpoint, elapsed=checkpoint_seconds)
 
         if is_best:
-            _retain_best_checkpoint(self.latest_checkpoint, self.best_checkpoint)
+            if logged_model is None:
+                _reference_checkpoint(destination, self.best_checkpoint)
             self._reporter.best_checkpoint_retained(
                 self.best_checkpoint,
                 loss=validation.loss,
                 step=self.state.completed_steps,
             )
+        if logged_model is None:
+            retained = {
+                path.resolve() for path in self.state.checkpoint_dir.iterdir() if path.is_symlink()
+            }
+            for snapshot in self.state.checkpoint_dir.glob("snapshot-*"):
+                if snapshot.resolve() not in retained:
+                    shutil.rmtree(snapshot)
 
 
 def build_optimizer(model: torch.nn.Module, learning_rate: float) -> torch.optim.AdamW:
@@ -245,8 +338,8 @@ def build_optimizer(model: torch.nn.Module, learning_rate: float) -> torch.optim
     )
 
 
-def _retain_best_checkpoint(checkpoint_path: Path, best_checkpoint_path: Path) -> None:
-    """Keep a copy of the latest checkpoint when it has the best validation loss."""
-    if best_checkpoint_path.exists():
-        shutil.rmtree(best_checkpoint_path)
-    shutil.copytree(checkpoint_path, best_checkpoint_path)
+def _reference_checkpoint(checkpoint_path: Path, reference: Path) -> None:
+    """Point at a complete snapshot without copying its bundle."""
+    if reference.is_symlink():
+        reference.unlink()
+    reference.symlink_to(checkpoint_path.resolve(), target_is_directory=True)

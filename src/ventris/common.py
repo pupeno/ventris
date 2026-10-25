@@ -29,7 +29,8 @@ class RunConfig:
     milestone_interval_checkpoints: int = 4
     validation_tokens: int = 80 * 524_288
     compile_model: bool = False
-    wandb_project: str | None = "ventris"
+    wandb_project: str | None = None
+    mlflow_root: str | None = "data/mlflow"
 
 
 DEFAULT_TRAINING_CONFIG = TrainingConfig()

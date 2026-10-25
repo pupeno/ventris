@@ -64,6 +64,7 @@ def short_run() -> RunConfig:
         validation_interval_steps=2,
         validation_tokens=16,
         wandb_project=None,
+        mlflow_root=None,
     )
 
 
@@ -708,7 +709,7 @@ def test_distributed_accumulation_matches_one_process_effective_batch(tmp_path, 
 
 
 @pytest.fixture
-def resume_environment(tmp_path, monkeypatch):
+def fork_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(train_module, "DATA_DIR", tmp_path)
     write_tiny_tokenizer(tmp_path)
     monkeypatch.setattr(train_module, "_training_device", lambda: torch.device("cpu"))
@@ -722,11 +723,8 @@ def resume_environment(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("architecture", ["vanilla", "rope"])
-@pytest.mark.parametrize("continue_run", [False, True])
-def test_latest_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run, architecture
-):
-    branch_dir = resume_environment
+def test_latest_local_checkpoint_can_fork_new_run(tmp_path, fork_environment, architecture):
+    branch_dir = fork_environment
     training = short_training(3)
     model = tiny_model(architecture)
     checkpoint = save_checkpoint(
@@ -741,29 +739,24 @@ def test_latest_checkpoint_can_start_new_or_continue_source_run(
         best_validation_loss=1.0,
         best_validation_step=2,
     )
-    resumed = train_module.train(
+    forked = train_module.train(
         training_conf=training,
         run_conf=short_run(),
-        resume=checkpoint,
-        continue_run=continue_run,
+        fork_checkpoint=checkpoint,
         architecture=architecture,
     )
 
-    assert resumed == (checkpoint if continue_run else branch_dir / "latest")
-    state, _ = load_checkpoint(resumed, torch.device("cpu"), training)
+    assert forked == branch_dir / "latest"
+    state, _ = load_checkpoint(forked, torch.device("cpu"), training)
     assert state["step"] == 3
     assert state["training_seconds_elapsed"] > 4.5
-    if not continue_run:
-        source_state, _ = load_checkpoint(checkpoint, torch.device("cpu"), training)
-        assert source_state["step"] == 2
+    source_state, _ = load_checkpoint(checkpoint, torch.device("cpu"), training)
+    assert source_state["step"] == 2
 
 
 @pytest.mark.parametrize("architecture", ["vanilla", "rope"])
-@pytest.mark.parametrize("continue_run", [False, True])
-def test_milestone_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run, architecture
-):
-    branch_dir = resume_environment
+def test_local_milestone_checkpoint_can_fork_new_run(tmp_path, fork_environment, architecture):
+    branch_dir = fork_environment
     training = short_training(3)
     model = tiny_model(architecture)
     milestone = save_checkpoint(
@@ -778,17 +771,16 @@ def test_milestone_checkpoint_can_start_new_or_continue_source_run(
         best_validation_loss=1.0,
         best_validation_step=2,
     )
-    resumed = train_module.train(
+    forked = train_module.train(
         training_conf=training,
         run_conf=short_run(),
-        resume=milestone,
-        continue_run=continue_run,
+        fork_checkpoint=milestone,
         architecture=architecture,
     )
 
-    assert resumed == (milestone.parent / "latest" if continue_run else branch_dir / "latest")
+    assert forked == branch_dir / "latest"
     source_state, _ = load_checkpoint(milestone, torch.device("cpu"), training)
-    branch_state, _ = load_checkpoint(resumed, torch.device("cpu"), training)
+    branch_state, _ = load_checkpoint(forked, torch.device("cpu"), training)
     assert source_state["step"] == 2
     assert branch_state["step"] == 3
 
@@ -832,8 +824,8 @@ def test_validation_interval_also_controls_checkpoint_interval(tmp_path, monkeyp
     ("architecture", "expectation"),
     [("vanilla", None), ("vanilla", "vanilla"), ("rope", None), ("rope", "rope")],
 )
-def test_selected_training_and_resumed_update_match_uninterrupted_run(
-    tmp_path, resume_environment, monkeypatch, architecture, expectation
+def test_selected_training_and_forked_update_match_uninterrupted_run(
+    tmp_path, fork_environment, monkeypatch, architecture, expectation
 ):
     training = short_training(3)
     run = replace(short_run(), validation_interval_steps=1, milestone_interval_checkpoints=1)
@@ -852,7 +844,7 @@ def test_selected_training_and_resumed_update_match_uninterrupted_run(
     expected_state, expected_model = load_checkpoint(uninterrupted, torch.device("cpu"), training)
     milestone = uninterrupted.parent / "step-000002"
     saved_state, saved_model = load_checkpoint(milestone, torch.device("cpu"), training)
-    destination = tmp_path / "resumed"
+    destination = tmp_path / "forked"
     restored = TrainingState.initialize(
         training,
         checkpoint_dir=destination,
@@ -878,13 +870,13 @@ def test_selected_training_and_resumed_update_match_uninterrupted_run(
             torch.testing.assert_close(moments[key], saved[key], rtol=0, atol=0)
 
     monkeypatch.setattr(train_module, "_checkpoint_directory", lambda distributed: destination)
-    resumed = train_module.train(
+    forked = train_module.train(
         training_conf=training,
         run_conf=run,
-        resume=milestone,
+        fork_checkpoint=milestone,
         architecture=expectation,
     )
-    actual_state, actual_model = load_checkpoint(resumed, torch.device("cpu"), training)
+    actual_state, actual_model = load_checkpoint(forked, torch.device("cpu"), training)
     assert actual_state["step"] == expected_state["step"] == 3
     for name, expected in expected_model.state_dict().items():
         torch.testing.assert_close(actual_model.state_dict()[name], expected, rtol=0, atol=0)
@@ -898,8 +890,8 @@ def test_selected_training_and_resumed_update_match_uninterrupted_run(
 
 
 @pytest.mark.parametrize("saved_architecture", ["vanilla", "rope"])
-def test_resume_architecture_conflict_precedes_weight_and_optimizer_loading(
-    tmp_path, resume_environment, saved_architecture
+def test_fork_architecture_conflict_precedes_weight_and_optimizer_loading(
+    tmp_path, fork_environment, saved_architecture
 ):
     checkpoint = tmp_path / "config-only"
     tiny_model(saved_architecture).config.save_pretrained(checkpoint)
@@ -909,7 +901,7 @@ def test_resume_architecture_conflict_precedes_weight_and_optimizer_loading(
         train_module.train(
             training_conf=short_training(3),
             run_conf=short_run(),
-            resume=checkpoint,
+            fork_checkpoint=checkpoint,
             architecture=requested,
         )
 
@@ -924,9 +916,9 @@ def test_fresh_training_requires_architecture_before_setup(monkeypatch):
     initialize_distributed.assert_not_called()
 
 
-@pytest.mark.parametrize("resume", [False, True])
+@pytest.mark.parametrize("fork", [False, True])
 def test_train_rejects_unsupported_programmatic_architecture(
-    tmp_path, resume_environment, monkeypatch, resume
+    tmp_path, fork_environment, monkeypatch, fork
 ):
     from ventris.models import create_model
 
@@ -937,6 +929,6 @@ def test_train_rejects_unsupported_programmatic_architecture(
         train_module.train(
             training_conf=short_training(3),
             run_conf=short_run(),
-            resume=checkpoint if resume else None,
+            fork_checkpoint=checkpoint if fork else None,
             architecture="mla",
         )
