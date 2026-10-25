@@ -10,22 +10,6 @@ from mlflow import MlflowClient
 DEFAULT_MLFLOW_ROOT = "data/mlflow"
 
 
-def configure_tracking(root: str = DEFAULT_MLFLOW_ROOT) -> str:
-    """Select the local SQLite store; writing needs no tracking server."""
-    directory = Path(root).resolve()
-    directory.mkdir(parents=True, exist_ok=True)
-    uri = f"sqlite:///{directory / 'mlflow.db'}"
-    mlflow.set_tracking_uri(uri)
-    mlflow.set_registry_uri(uri)
-    client = MlflowClient()
-    experiment = client.get_experiment_by_name("ventris")
-    if experiment is None:
-        return client.create_experiment(
-            "ventris", artifact_location=(directory / "artifacts").as_uri()
-        )
-    return experiment.experiment_id
-
-
 def resolve_checkpoint(
     reference: str | Path, root: str = DEFAULT_MLFLOW_ROOT
 ) -> tuple[Path, str | None]:
@@ -51,14 +35,6 @@ def resolve_checkpoint(
     return local_artifact_path(model.artifact_location), model.model_id
 
 
-def local_artifact_path(uri: str) -> Path:
-    """Convert MLflow's local artifact location to its existing directory."""
-    parsed = urlparse(uri)
-    if parsed.scheme != "file" or parsed.netloc not in ("", "localhost"):
-        raise ValueError("Ventris checkpoint storage requires local file artifacts")
-    return Path(unquote(parsed.path))
-
-
 def prune_checkpoint(model_id: str) -> None:
     """Remove an obsolete snapshot unless an evaluation, fork, or registry retains it."""
     client = MlflowClient()
@@ -73,3 +49,27 @@ def prune_checkpoint(model_id: str) -> None:
             return
     shutil.rmtree(local_artifact_path(model.artifact_location))
     client.delete_logged_model(model_id)
+
+
+def configure_tracking(root: str = DEFAULT_MLFLOW_ROOT) -> str:
+    """Select the local SQLite store; writing needs no tracking server."""
+    directory = Path(root).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    uri = f"sqlite:///{directory / 'mlflow.db'}"
+    mlflow.set_tracking_uri(uri)
+    mlflow.set_registry_uri(uri)
+    client = MlflowClient()
+    experiment = client.get_experiment_by_name("ventris")
+    if experiment is None:
+        return client.create_experiment(
+            "ventris", artifact_location=(directory / "artifacts").as_uri()
+        )
+    return experiment.experiment_id
+
+
+def local_artifact_path(uri: str) -> Path:
+    """Convert MLflow's local artifact location to its existing directory."""
+    parsed = urlparse(uri)
+    if parsed.scheme != "file" or parsed.netloc not in ("", "localhost"):
+        raise ValueError("Ventris checkpoint storage requires local file artifacts")
+    return Path(unquote(parsed.path))

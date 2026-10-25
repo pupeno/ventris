@@ -2,6 +2,7 @@
 
 import sys
 from contextlib import ExitStack
+from dataclasses import fields
 from pathlib import Path
 from types import TracebackType
 from uuid import uuid4
@@ -12,6 +13,7 @@ from mlflow import MlflowClient
 from mlflow.entities import LoggedModelInput
 from tqdm import tqdm
 
+from ventris.common import RunConfig
 from ventris.tracking import configure_tracking
 from ventris.training_results import StepResult, ValidationResult
 
@@ -206,22 +208,9 @@ class TrainingReporter:
             self.mlflow_run_id = tracked.info.run_id
             mlflow.set_tag("ventris.kind", "training")
             # Execution settings can change when resuming; training parameters cannot.
+            runtime_fields = {field.name for field in fields(RunConfig)} | {"world_size"}
             mlflow.log_params(
-                {
-                    key: value
-                    for key, value in self.config.items()
-                    if key
-                    not in {
-                        "device_batch_size",
-                        "validation_interval_steps",
-                        "milestone_interval_checkpoints",
-                        "validation_tokens",
-                        "compile_model",
-                        "wandb_project",
-                        "mlflow_root",
-                        "world_size",
-                    }
-                }
+                {key: value for key, value in self.config.items() if key not in runtime_fields}
             )
             mlflow.log_dict(self.config, f"invocations/{uuid4().hex}.json")
             if self.source_checkpoint is not None:

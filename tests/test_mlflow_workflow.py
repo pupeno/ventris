@@ -169,7 +169,7 @@ def test_interrupted_run_continues_latest_and_checkpoint_fork_preserves_source(
     source_id = original.data.tags["ventris.latest_checkpoint"]
     source_path = Path(download_artifacts(f"models:/{source_id}"))
     original_bytes = (source_path / "model.safetensors").read_bytes()
-    fork = train_module.train(training, local_training, resume=f"models:/{source_id}")
+    fork = train_module.train(training, local_training, fork_checkpoint=f"models:/{source_id}")
     fork_run = client.get_run(client.search_runs([experiment.experiment_id])[0].info.run_id)
     assert fork_run.info.run_id != original.info.run_id
     assert fork_run.data.tags["ventris.source_checkpoint"] == source_id
@@ -310,7 +310,7 @@ def test_fork_can_continue_before_improving_inherited_best(local_training, tmp_p
     monkeypatch.setattr(wandb, "init", lambda **kwargs: InterruptedRun())
     config = replace(local_training, validation_interval_steps=1, wandb_project="test")
     with pytest.raises(RuntimeError, match="interrupted"):
-        train_module.train(training, config, resume=source)
+        train_module.train(training, config, fork_checkpoint=source)
     client = MlflowClient()
     experiment = client.get_experiment_by_name("ventris")
     assert experiment is not None

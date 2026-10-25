@@ -127,7 +127,7 @@ def test_train_continue_run_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None
 
     module.main()
 
-    assert train.call_args.kwargs["resume"] is None
+    assert train.call_args.kwargs["fork_checkpoint"] is None
     assert train.call_args.kwargs["continue_run"] == "run-identity"
 
 
@@ -174,7 +174,7 @@ def test_fresh_training_requires_explicit_architecture(monkeypatch, capsys):
     train.assert_not_called()
 
 
-def test_resumed_training_can_read_architecture_from_checkpoint(monkeypatch):
+def test_forked_training_can_read_architecture_from_checkpoint(monkeypatch):
     path, module = load_script("train.py")
     train = Mock(return_value=Path("latest"))
     monkeypatch.setattr(module, "train", train)
@@ -182,7 +182,7 @@ def test_resumed_training_can_read_architecture_from_checkpoint(monkeypatch):
 
     module.main()
 
-    assert train.call_args.kwargs["resume"] == "run/latest"
+    assert train.call_args.kwargs["fork_checkpoint"] == "run/latest"
     assert train.call_args.kwargs["architecture"] is None
 
 
