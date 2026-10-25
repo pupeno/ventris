@@ -32,7 +32,7 @@ def main() -> None:
     checkpoint = train(
         training_conf=training_conf,
         run_conf=run_conf,
-        resume=arguments.fork_checkpoint,
+        fork_checkpoint=arguments.fork_checkpoint,
         continue_run=arguments.continue_run,
         architecture=arguments.architecture,
     )
@@ -64,7 +64,7 @@ def _parse_arguments() -> argparse.Namespace:
         "--steps",
         type=int,
         default=training_defaults.steps,
-        help="total optimizer steps, including steps from a resumed checkpoint",
+        help="total optimizer steps, including completed steps in the starting checkpoint",
     )
     parser.add_argument(
         "--validation-interval",
@@ -77,7 +77,7 @@ def _parse_arguments() -> argparse.Namespace:
         type=int,
         default=run_defaults.milestone_interval_checkpoints,
         metavar="CHECKPOINTS",
-        help="scheduled validation checkpoints between retained, resumable milestones",
+        help="scheduled validation checkpoints between retained checkpoints available for forking",
     )
     parser.add_argument(
         "--seed",

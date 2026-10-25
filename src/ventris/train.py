@@ -64,17 +64,19 @@ PROMPT_TESTS = (
 def train(
     training_conf: TrainingConfig = DEFAULT_TRAINING_CONFIG,
     run_conf: RunConfig = DEFAULT_RUN_CONFIG,
-    resume: str | Path | None = None,
+    fork_checkpoint: str | Path | None = None,
     *,
     continue_run: str | None = None,
     architecture: str | None = None,
 ) -> Path:
     """Train through ``training_conf.steps`` and return the latest checkpoint."""
-    if architecture is None and resume is None and continue_run is None:
+    if architecture is None and fork_checkpoint is None and continue_run is None:
         raise ValueError("architecture is required for fresh training")
     distributed, initialized_here = _initialize_distributed()
     try:
-        return _train(training_conf, run_conf, resume, distributed, continue_run, architecture)
+        return _train(
+            training_conf, run_conf, fork_checkpoint, distributed, continue_run, architecture
+        )
     finally:
         if initialized_here:
             dist.destroy_process_group()
@@ -83,7 +85,7 @@ def train(
 def _train(
     training_conf: TrainingConfig,
     run_conf: RunConfig,
-    resume: str | Path | None,
+    fork_checkpoint: str | Path | None,
     distributed: DistributedContext,
     continue_run: str | None,
     architecture: str | None,
@@ -92,12 +94,12 @@ def _train(
     # multi-process mechanics and primary-process side effects.
     _validate_training_config(training_conf)
     _validate_run_config(training_conf, run_conf, distributed.world_size)
-    if continue_run is not None and resume is not None:
+    if continue_run is not None and fork_checkpoint is not None:
         raise ValueError("continue_run and a fork checkpoint are mutually exclusive")
     if continue_run is not None and run_conf.mlflow_root is None:
         raise ValueError("continuation requires MLflow tracking")
-    resume_path, source_checkpoint = _starting_checkpoint(
-        resume, continue_run, run_conf, distributed
+    checkpoint_path, source_checkpoint = _starting_checkpoint(
+        fork_checkpoint, continue_run, run_conf, distributed
     )
     data = load_prepared_data()
     target = _training_device()
@@ -109,7 +111,7 @@ def _train(
     state = TrainingState.initialize(
         training_conf,
         checkpoint_dir=checkpoint_dir,
-        resume=resume_path,
+        resume=checkpoint_path,
         target=target,
         architecture=architecture,
     )
@@ -133,8 +135,8 @@ def _train(
         is_primary=distributed.is_primary,
         tokenizer_dir=DATA_DIR,
         continue_run=continue_run,
-        source_checkpoint=(source_checkpoint or str(resume_path))
-        if continue_run is None and resume_path is not None
+        source_checkpoint=(source_checkpoint or str(checkpoint_path))
+        if continue_run is None and checkpoint_path is not None
         else None,
     )
 
@@ -199,7 +201,7 @@ def _train(
 
 
 def _starting_checkpoint(
-    resume: str | Path | None,
+    fork_checkpoint: str | Path | None,
     continue_run: str | None,
     run_conf: RunConfig,
     distributed: DistributedContext,
@@ -208,14 +210,15 @@ def _starting_checkpoint(
     source: tuple[Path | None, str | None] = (None, None)
     if distributed.is_primary:
         root = run_conf.mlflow_root or DEFAULT_MLFLOW_ROOT
+        reference = fork_checkpoint
         if continue_run is not None:
             configure_tracking(root)
             tracked = MlflowClient().get_run(continue_run)
             if tracked.data.tags.get("ventris.kind") != "training":
                 raise ValueError("continuation requires a Ventris training run")
-            resume = f"models:/{tracked.data.tags['ventris.latest_checkpoint']}"
-        if resume is not None:
-            source = resolve_checkpoint(resume, root)
+            reference = f"models:/{tracked.data.tags['ventris.latest_checkpoint']}"
+        if reference is not None:
+            source = resolve_checkpoint(reference, root)
             if source[1] is not None and continue_run is None:
                 MlflowClient().set_logged_model_tags(source[1], {"ventris.forked": "true"})
     if distributed.is_distributed:
