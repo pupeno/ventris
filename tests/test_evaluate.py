@@ -61,8 +61,8 @@ def test_evaluation_saves_harness_scores_and_exact_model_dataset_inputs(
     assert table["normalized_prediction"].tolist() == ["token3 token4", "token4 token5", "token10"]
     assert table["correct"].tolist() == [True, True, True]
     assert table["normalized_correct"].tolist() == [False, False, True]
-    assert table["correct"].mean() == run.data.metrics["piqa/acc"]
-    assert table["normalized_correct"].mean() == run.data.metrics["piqa/acc_norm"]
+    assert table["correct"].to_numpy().mean() == run.data.metrics["piqa/acc"]
+    assert table["normalized_correct"].to_numpy().mean() == run.data.metrics["piqa/acc_norm"]
     assert table["choice_1_score"].tolist() == pytest.approx(
         [-math.log(32), -2 * math.log(32), -3 * math.log(32)]
     )
