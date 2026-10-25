@@ -8,6 +8,31 @@ mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
 
 Open http://127.0.0.1:5000. For another root, point the UI at that directory's `mlflow.db`. Artifact locations are absolute local paths. Moving stores between machines is outside this first integration.
 
+MLflow creates a built-in `Default` experiment (ID `0`) for runs without an explicit experiment. Leave it in place. Ventris automatically creates or reuses its own `ventris` experiment in the chosen store; no separate setup command is needed. Select `ventris` in the UI. Starting the UI does not import runs from another store.
+
+## UI from a Linux devcontainer
+
+For a browser on the native Linux Docker host, run the following from the project root inside the container with the virtual environment active. It serves the UI directly on the container's network interface, without VS Code, a forwarding process, or recreating the container:
+
+```bash
+mlflow_container_ip=$(hostname -I | awk '{print $1}')
+printf 'Open http://%s:5000\n' "$mlflow_container_ip"
+mlflow ui \
+  --backend-store-uri sqlite:///data/mlflow-smoke/mlflow.db \
+  --host 0.0.0.0 --port 5000 \
+  --cors-allowed-origins "http://${mlflow_container_ip}:5000,http://localhost:5000,http://127.0.0.1:5000"
+```
+
+This example opens the acceptance demonstration store. For normal training, use `sqlite:///data/mlflow/mlflow.db` instead. Stop an existing UI or forwarding process using port 5000 before starting this command; the container and saved records can stay in place. Recompute the address after recreating the container. The allowed origins must include the exact address used in the browser: otherwise the page can load while run and model searches are rejected with HTTP 403. See [MLflow's network configuration](https://mlflow.org/docs/latest/self-hosting/security/network/).
+
+If the browser is on another computer, leave the UI running and create an SSH tunnel from that computer through the Linux Docker host, replacing `CONTAINER_IP` with the address printed above:
+
+```bash
+ssh -N -L 5000:CONTAINER_IP:5000 user@docker-host
+```
+
+Then open http://localhost:5000. Direct container-IP access applies to native Linux Docker; Docker Desktop requires a published port or a tunnel provided by its environment.
+
 ## Training and storage
 
 MLflow is on by default and W&B is off. The switches are independent:
