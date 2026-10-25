@@ -79,7 +79,11 @@ Continue an interrupted tracked run from its latest checkpoint:
 scripts/train.py --continue-run RUN_ID
 ```
 
-MLflow tracks locally by default; W&B is off unless enabled with `--wandb-project`. See the [local MLflow workflow](docs/mlflow.md) for checkpoint selection, forking, evaluations, UI setup, and a short training walkthrough.
+Fork a saved checkpoint into a new run, preserving its training state:
+
+```console
+scripts/train.py --fork-checkpoint models:/MODEL_ID
+```
 
 Train on every GPU in the machine with one process per GPU:
 
@@ -93,9 +97,23 @@ Generate text from a checkpoint:
 
 ```console
 scripts/generate.py \
-  --checkpoint data/checkpoints/2026-09-18_07-47-10/latest \
+  --checkpoint models:/MODEL_ID \
   --prompt "The purpose of education is"
 ```
+
+## MLflow
+
+Training tracks runs and checkpoints locally in `data/mlflow/` by default, without a running service. W&B is off by default. Use `--no-mlflow`, `--mlflow-root DIRECTORY`, or `--wandb-project PROJECT` to change reporting; see `scripts/train.py --help` for options.
+
+Start the UI when needed:
+
+```console
+mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
+```
+
+Open http://localhost:5000 and select `ventris`. MLflow's built-in `Default` experiment can stay empty. For a browser on the native Linux Docker host, add `--host 0.0.0.0 --cors-allowed-origins http://CONTAINER_IP:5000` and open that address; `hostname -I` inside the container prints its IP.
+
+Training prints run IDs and `models:/MODEL_ID` checkpoint references. Run a small fixture evaluation with `scripts/evaluate.py --checkpoint models:/MODEL_ID`. Generation and evaluation also accept native registry aliases such as `models:/ventris-rope-v1@selected`.
 
 ## Fix formatting
 
