@@ -2,14 +2,15 @@
 """Generate one continuation from a checkpoint."""
 
 import argparse
-from pathlib import Path
 
 from ventris.generate import generate
+from ventris.tracking import DEFAULT_MLFLOW_ROOT
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--mlflow-root", default=DEFAULT_MLFLOW_ROOT)
     parser.add_argument("--prompt", default="")
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -24,6 +25,7 @@ def main() -> None:
             temperature=arguments.temperature,
             top_k=arguments.top_k,
             seed=arguments.seed,
+            mlflow_root=arguments.mlflow_root,
         )
     )
 

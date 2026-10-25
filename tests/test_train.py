@@ -64,6 +64,7 @@ def short_run() -> RunConfig:
         validation_interval_steps=2,
         validation_tokens=16,
         wandb_project=None,
+        mlflow_root=None,
     )
 
 
@@ -722,10 +723,7 @@ def resume_environment(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("architecture", ["vanilla", "rope"])
-@pytest.mark.parametrize("continue_run", [False, True])
-def test_latest_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run, architecture
-):
+def test_latest_local_checkpoint_can_fork_new_run(tmp_path, resume_environment, architecture):
     branch_dir = resume_environment
     training = short_training(3)
     model = tiny_model(architecture)
@@ -745,24 +743,19 @@ def test_latest_checkpoint_can_start_new_or_continue_source_run(
         training_conf=training,
         run_conf=short_run(),
         resume=checkpoint,
-        continue_run=continue_run,
         architecture=architecture,
     )
 
-    assert resumed == (checkpoint if continue_run else branch_dir / "latest")
+    assert resumed == branch_dir / "latest"
     state, _ = load_checkpoint(resumed, torch.device("cpu"), training)
     assert state["step"] == 3
     assert state["training_seconds_elapsed"] > 4.5
-    if not continue_run:
-        source_state, _ = load_checkpoint(checkpoint, torch.device("cpu"), training)
-        assert source_state["step"] == 2
+    source_state, _ = load_checkpoint(checkpoint, torch.device("cpu"), training)
+    assert source_state["step"] == 2
 
 
 @pytest.mark.parametrize("architecture", ["vanilla", "rope"])
-@pytest.mark.parametrize("continue_run", [False, True])
-def test_milestone_checkpoint_can_start_new_or_continue_source_run(
-    tmp_path, resume_environment, continue_run, architecture
-):
+def test_local_milestone_checkpoint_can_fork_new_run(tmp_path, resume_environment, architecture):
     branch_dir = resume_environment
     training = short_training(3)
     model = tiny_model(architecture)
@@ -782,11 +775,10 @@ def test_milestone_checkpoint_can_start_new_or_continue_source_run(
         training_conf=training,
         run_conf=short_run(),
         resume=milestone,
-        continue_run=continue_run,
         architecture=architecture,
     )
 
-    assert resumed == (milestone.parent / "latest" if continue_run else branch_dir / "latest")
+    assert resumed == branch_dir / "latest"
     source_state, _ = load_checkpoint(milestone, torch.device("cpu"), training)
     branch_state, _ = load_checkpoint(resumed, torch.device("cpu"), training)
     assert source_state["step"] == 2

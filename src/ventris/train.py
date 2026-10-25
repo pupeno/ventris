@@ -8,11 +8,13 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
+from uuid import uuid4
 
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from datasets import Dataset
+from mlflow import MlflowClient
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
@@ -28,6 +30,7 @@ from ventris.common import (
 )
 from ventris.data import DATA_DIR, load_prepared_data, load_tokenizer
 from ventris.models import Model
+from ventris.tracking import DEFAULT_MLFLOW_ROOT, configure_tracking, resolve_checkpoint
 from ventris.training_results import StepResult, ValidationResult
 from ventris.training_run import TrainingRun, TrainingState
 
@@ -61,13 +64,13 @@ PROMPT_TESTS = (
 def train(
     training_conf: TrainingConfig = DEFAULT_TRAINING_CONFIG,
     run_conf: RunConfig = DEFAULT_RUN_CONFIG,
-    resume: Path | None = None,
+    resume: str | Path | None = None,
     *,
-    continue_run: bool = False,
+    continue_run: str | None = None,
     architecture: str | None = None,
 ) -> Path:
     """Train through ``training_conf.steps`` and return the latest checkpoint."""
-    if architecture is None and resume is None:
+    if architecture is None and resume is None and continue_run is None:
         raise ValueError("architecture is required for fresh training")
     distributed, initialized_here = _initialize_distributed()
     try:
@@ -80,30 +83,33 @@ def train(
 def _train(
     training_conf: TrainingConfig,
     run_conf: RunConfig,
-    resume: Path | None,
+    resume: str | Path | None,
     distributed: DistributedContext,
-    continue_run: bool,
+    continue_run: str | None,
     architecture: str | None,
 ) -> Path:
     # Every process follows this training path. The branches only select
     # multi-process mechanics and primary-process side effects.
     _validate_training_config(training_conf)
     _validate_run_config(training_conf, run_conf, distributed.world_size)
-    if continue_run and resume is None:
-        raise ValueError("continue_run requires a resume checkpoint")
+    if continue_run is not None and resume is not None:
+        raise ValueError("continue_run and a fork checkpoint are mutually exclusive")
+    if continue_run is not None and run_conf.mlflow_root is None:
+        raise ValueError("continuation requires MLflow tracking")
+    resume_path, source_checkpoint = _starting_checkpoint(
+        resume, continue_run, run_conf, distributed
+    )
     data = load_prepared_data()
     target = _training_device()
     # This permits TF32 for FP32 matmuls; autocast separately selects BF16 operations.
     torch.set_float32_matmul_precision("high")
 
     torch.manual_seed(training_conf.seed)
-    checkpoint_dir = (
-        resume.parent if continue_run and resume is not None else _checkpoint_directory(distributed)
-    )
+    checkpoint_dir = _checkpoint_directory(distributed)
     state = TrainingState.initialize(
         training_conf,
         checkpoint_dir=checkpoint_dir,
-        resume=resume,
+        resume=resume_path,
         target=target,
         architecture=architecture,
     )
@@ -126,6 +132,10 @@ def _train(
         world_size=distributed.world_size,
         is_primary=distributed.is_primary,
         tokenizer_dir=DATA_DIR,
+        continue_run=continue_run,
+        source_checkpoint=(source_checkpoint or str(resume_path))
+        if continue_run is None and resume_path is not None
+        else None,
     )
 
     def validate() -> ValidationResult | None:
@@ -182,9 +192,37 @@ def _train(
             if distributed.is_distributed and should_validate:
                 dist.barrier()
 
+    latest_checkpoint = [run.latest_checkpoint]
     if distributed.is_distributed:
-        dist.barrier()
-    return run.latest_checkpoint
+        dist.broadcast_object_list(latest_checkpoint)
+    return latest_checkpoint[0]
+
+
+def _starting_checkpoint(
+    resume: str | Path | None,
+    continue_run: str | None,
+    run_conf: RunConfig,
+    distributed: DistributedContext,
+) -> tuple[Path | None, str | None]:
+    """Resolve the primary process's chosen checkpoint and share it with all ranks."""
+    source: tuple[Path | None, str | None] = (None, None)
+    if distributed.is_primary:
+        root = run_conf.mlflow_root or DEFAULT_MLFLOW_ROOT
+        if continue_run is not None:
+            configure_tracking(root)
+            tracked = MlflowClient().get_run(continue_run)
+            if tracked.data.tags.get("ventris.kind") != "training":
+                raise ValueError("continuation requires a Ventris training run")
+            resume = f"models:/{tracked.data.tags['ventris.latest_checkpoint']}"
+        if resume is not None:
+            source = resolve_checkpoint(resume, root)
+            if source[1] is not None and continue_run is None:
+                MlflowClient().set_logged_model_tags(source[1], {"ventris.forked": "true"})
+    if distributed.is_distributed:
+        sources = [source]
+        dist.broadcast_object_list(sources)
+        source = sources[0]
+    return source
 
 
 def _initialize_distributed() -> tuple[DistributedContext, bool]:
@@ -255,7 +293,11 @@ def _checkpoint_directory(distributed: DistributedContext) -> Path:
     """Choose one checkpoint directory and share it with every rank."""
     path = None
     if distributed.is_primary:
-        path = str(DATA_DIR / "checkpoints" / time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()))
+        path = str(
+            DATA_DIR
+            / "checkpoints"
+            / (time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()) + "_" + uuid4().hex[:8])
+        )
     if distributed.is_distributed:
         paths = [path]
         dist.broadcast_object_list(paths)

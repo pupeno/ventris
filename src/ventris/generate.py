@@ -8,18 +8,21 @@ from transformers import PreTrainedTokenizerFast
 from ventris.common import default_device, evaluation_mode, mixed_precision
 from ventris.data import load_tokenizer
 from ventris.models import Model, load_model
+from ventris.tracking import DEFAULT_MLFLOW_ROOT, resolve_checkpoint
 
 
 def generate(
-    checkpoint: Path,
+    checkpoint: str | Path,
     prompt: str,
     *,
     max_new_tokens: int = 128,
     temperature: float = 1.0,
     top_k: int = 50,
     seed: int = 0,
+    mlflow_root: str = DEFAULT_MLFLOW_ROOT,
 ) -> str:
     """Load a checkpoint and sample one continuation."""
+    checkpoint, _ = resolve_checkpoint(checkpoint, mlflow_root)
     model = load_model(checkpoint)
     model.to(default_device())  # pyright: ignore[reportArgumentType]
     return generate_from_model(
