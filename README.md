@@ -130,6 +130,18 @@ Open http://localhost:5000 and select `ventris`.
 
 Training prints run IDs and `models:/MODEL_ID` checkpoint references. Generation also accepts native registry aliases such as `models:/ventris-rope-v1@selected`.
 
+### Compare evaluation results
+
+Choose **Model training → ventris → Runs** and filter with `params.dataset_repository = 'baber/piqa'`. Run names identify the models.
+
+For overall scores, use **Columns** to show `piqa/acc` and `piqa/acc_norm`. Select the runs and click **Compare** for scores side by side.
+
+For individual answers, click **Artifact evaluation** (the third view icon beside search):
+
+1. Select **Table: piqa_questions.json**.
+2. Under **Group by**, select `question_id`, `question`, and `correct_answer`.
+3. Under **Compare**, choose `prediction` or `normalized_prediction` for answers, or `correct` or `normalized_correct` for successes and errors.
+
 ## Fix formatting
 
 ```console

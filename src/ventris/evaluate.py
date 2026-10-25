@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
@@ -68,7 +69,17 @@ def evaluate(
         model, tokenizer, model_id, identity = _load_evaluation_model(
             checkpoint, hf_model, hf_revision, mlflow_root, experiment_id
         )
-        mlflow.set_tags({"ventris.kind": "evaluation", "ventris.model": model_id})
+        model_name = identity.get(
+            "huggingface_repository", model.config.model_type.removeprefix("ventris-")
+        )
+        revision = identity.get("huggingface_revision", model_id.removeprefix("m-"))
+        mlflow.set_tags(
+            {
+                "ventris.kind": "evaluation",
+                "ventris.model": model_id,
+                "mlflow.runName": f"piqa-{model_name.replace('/', '-')}-{revision[:8]}",
+            }
+        )
         if checkpoint is not None:
             mlflow.set_tag("ventris.checkpoint", model_id)
         tokenizer_sha256 = _digest(
@@ -104,6 +115,7 @@ def evaluate(
         )
         configuration = {
             "model_id": model_id,
+            "model_name": model_name,
             **identity,
             "tokenizer_sha256": tokenizer_sha256,
             "dataset_repository": "baber/piqa",
@@ -144,6 +156,7 @@ def evaluate(
         samples = results.pop("samples")["piqa"]
         mlflow.log_text(json.dumps(samples, default=handle_non_serializable), "samples.json")
         mlflow.log_dict(dict(results), "results.json")
+        mlflow.log_table(_question_table(samples), "piqa_questions.json")
         for name, value in results["results"]["piqa"].items():
             if name.endswith(",none") and isinstance(value, int | float):
                 client.log_metric(
@@ -213,6 +226,37 @@ def _load_evaluation_model(
             "huggingface_revision": hf_revision,
         },
     )
+
+
+def _question_table(samples: Sequence[Mapping[str, Any]]) -> dict[str, list[Any]]:
+    """Present harness results as a native MLflow table for comparing answers."""
+    rows = []
+    for sample in samples:
+        document = sample["doc"]
+        choices = [document["sol1"], document["sol2"]]
+        scores = [float(response[0]) for response in sample["filtered_resps"]]
+        # PIQA uses answer character counts, with the first choice winning ties.
+        normalized = [score / len(choice) for score, choice in zip(scores, choices, strict=True)]
+        predicted = max(range(2), key=lambda index: scores[index])
+        predicted_normalized = max(range(2), key=lambda index: normalized[index])
+        rows.append(
+            {
+                "question_id": sample["doc_id"],
+                "question": document["goal"],
+                "choice_1": choices[0],
+                "choice_2": choices[1],
+                "correct_answer": choices[int(document["label"])],
+                "prediction": choices[predicted],
+                "normalized_prediction": choices[predicted_normalized],
+                "correct": bool(sample["acc"]),
+                "normalized_correct": bool(sample["acc_norm"]),
+                "choice_1_score": scores[0],
+                "choice_2_score": scores[1],
+                "choice_1_normalized_score": normalized[0],
+                "choice_2_normalized_score": normalized[1],
+            }
+        )
+    return {column: [row[column] for row in rows] for column in rows[0]}
 
 
 def _piqa_task() -> ConfigurableTask:

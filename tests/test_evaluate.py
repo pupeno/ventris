@@ -30,6 +30,8 @@ def test_evaluation_saves_harness_scores_and_exact_model_dataset_inputs(
     client = MlflowClient()
     run = client.get_run(run_id)
     assert run.info.status == "FINISHED"
+    assert run.info.run_name == f"piqa-{architecture}-v1-{model_id[2:10]}"
+    assert run.data.params["model_name"] == f"{architecture}-v1"
     assert run.data.tags["ventris.kind"] == "evaluation"
     assert run.data.tags["ventris.checkpoint"] == model_id
     assert run.inputs is not None
@@ -51,6 +53,22 @@ def test_evaluation_saves_harness_scores_and_exact_model_dataset_inputs(
     samples = json.loads((artifacts / "samples.json").read_text())
     assert [sample["doc"] for sample in samples] == local_questions
     assert [sample["target"] for sample in samples] == [0, 1, 1]
+    table = client.load_table(run.info.experiment_id, "piqa_questions.json", run_ids=[run_id])
+    assert table["question_id"].tolist() == [0, 1, 2]
+    assert table["question"].tolist() == [question["goal"] for question in local_questions]
+    assert table["correct_answer"].tolist() == ["token2", "token6", "token10"]
+    assert table["prediction"].tolist() == ["token2", "token6", "token10"]
+    assert table["normalized_prediction"].tolist() == ["token3 token4", "token4 token5", "token10"]
+    assert table["correct"].tolist() == [True, True, True]
+    assert table["normalized_correct"].tolist() == [False, False, True]
+    assert table["correct"].mean() == run.data.metrics["piqa/acc"]
+    assert table["normalized_correct"].mean() == run.data.metrics["piqa/acc_norm"]
+    assert table["choice_1_score"].tolist() == pytest.approx(
+        [-math.log(32), -2 * math.log(32), -3 * math.log(32)]
+    )
+    assert table["choice_2_normalized_score"].tolist() == pytest.approx(
+        [-2 * math.log(32) / 13, -math.log(32) / 6, -math.log(32) / 7]
+    )
     expected_lengths = [[1, 2], [2, 1], [3, 1]]
     for sample, lengths in zip(samples, expected_lengths, strict=True):
         scores = [response[0] for response in sample["filtered_resps"]]
@@ -129,6 +147,18 @@ def test_external_evaluations_reuse_exact_identity_without_copying_weights(
         device_batch_size=3,
     )
     assert first != second
+    external_run = MlflowClient().get_run(first)
+    assert external_run.info.run_name == "piqa-openai-community-gpt2-607a30d7"
+    assert external_run.data.params["model_name"] == repository
+    combined = MlflowClient().load_table(
+        external_run.info.experiment_id,
+        "piqa_questions.json",
+        run_ids=[first, second],
+        extra_columns=["run_id"],
+    )
+    assert len(combined) == 6
+    assert set(combined["run_id"]) == {first, second}
+    assert combined.groupby("question_id").size().tolist() == [2, 2, 2]
     assert requested == [
         (kind, repository, revision) for _ in range(2) for kind in ("model", "tokenizer")
     ]
