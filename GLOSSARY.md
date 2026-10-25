@@ -15,6 +15,19 @@ A generation of a Ventris architecture, distinguished by backward-incompatible c
 A training distinction within a Ventris architecture and version, such as Base or Instruct.
 _Avoid_: Architecture when referring to a training distinction
 
+**Training run**:
+A training history with its own identity, which can span interruptions and resumptions and produce multiple checkpoints.
+
+**Checkpoint**:
+A saved snapshot of a model and its training state at a particular training step, sufficient to evaluate the model or resume training.
+_Avoid_: Version when referring to a particular set of saved weights
+
+**Resume**:
+Continue an existing training run from a checkpoint, preserving the run's identity.
+
+**Fork**:
+Start a new training run from an existing checkpoint, preserving the source run's history.
+
 **Effective batch**:
 The complete set of training sequences whose gradients contribute to one optimizer update.
 _Avoid_: Global batch
