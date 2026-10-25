@@ -82,6 +82,7 @@ def short_run() -> RunConfig:
         validation_interval_steps=2,
         validation_tokens=16,
         wandb_project=None,
+        mlflow_root=None,
     )
 
 
@@ -215,7 +216,9 @@ def test_validation_retains_lowest_loss_as_best_checkpoint(tmp_path, run_factory
     assert latest_state["best_validation_step"] == 1
     assert best_state["best_validation_loss"] == 2.0
     assert best_state["best_validation_step"] == 1
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["best", "latest", "tokenizer"]
+    assert run.latest_checkpoint.is_symlink()
+    assert run.best_checkpoint.is_symlink()
+    assert len(list(tmp_path.rglob(TRAINING_STATE_FILE))) == 2
 
 
 def test_milestones_align_with_every_nth_validation_checkpoint(tmp_path, run_factory):
@@ -226,6 +229,7 @@ def test_milestones_align_with_every_nth_validation_checkpoint(tmp_path, run_fac
         milestone_interval_checkpoints=2,
         validation_tokens=16,
         wandb_project=None,
+        mlflow_root=None,
     )
     model = tiny_model()
     state = TrainingState(
@@ -254,13 +258,9 @@ def test_milestones_align_with_every_nth_validation_checkpoint(tmp_path, run_fac
         restored = Ventris.from_pretrained(milestone, local_files_only=True)
         assert torch.all(next(restored.parameters()) == completed)
     assert torch.load(run.latest_checkpoint / TRAINING_STATE_FILE)["step"] == 9
-    assert sorted(path.name for path in tmp_path.iterdir()) == [
-        "best",
-        "latest",
-        "step-000004",
-        "step-000008",
-        "tokenizer",
-    ]
+    assert (tmp_path / "step-000004").is_symlink()
+    assert (tmp_path / "step-000008").is_symlink()
+    assert len(list(tmp_path.rglob(TRAINING_STATE_FILE))) == 3
 
 
 def test_best_validation_state_persists_across_resume(tmp_path, run_factory):
@@ -290,7 +290,7 @@ def test_best_validation_state_persists_across_resume(tmp_path, run_factory):
     )
     state = TrainingState.initialize(
         training,
-        checkpoint_dir=tmp_path,
+        checkpoint_dir=tmp_path / "fork",
         resume=latest,
         target=torch.device("cpu"),
         architecture="vanilla",
@@ -337,14 +337,12 @@ def test_validation_and_checkpoint_phases_are_reported_as_each_completes(
             events.append("best checkpoint reported")
 
     def save(*args, **kwargs):
+        result = save_checkpoint(*args, **kwargs)
         events.append("checkpoint saved")
-
-    def retain_best(*args):
-        events.append("best checkpoint retained")
+        return result
 
     monkeypatch.setattr(training_run_module, "TrainingReporter", Reporter)
     monkeypatch.setattr(training_run_module, "save_checkpoint", save)
-    monkeypatch.setattr(training_run_module, "_retain_best_checkpoint", retain_best)
     training = short_training(1)
     model = tiny_model()
     state = TrainingState(
@@ -363,7 +361,6 @@ def test_validation_and_checkpoint_phases_are_reported_as_each_completes(
         "samples reported",
         "checkpoint saved",
         "checkpoint reported",
-        "best checkpoint retained",
         "best checkpoint reported",
         "step reported",
         "samples reported",
@@ -396,7 +393,7 @@ def test_current_run_config_is_saved_after_resume(tmp_path, run_factory):
     )
     state = TrainingState.initialize(
         training,
-        checkpoint_dir=tmp_path,
+        checkpoint_dir=tmp_path / "fork",
         resume=checkpoint,
         target=torch.device("cpu"),
         architecture="vanilla",

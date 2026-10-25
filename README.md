@@ -73,11 +73,13 @@ Process eight sequences per device batch:
 scripts/train.py --architecture vanilla --device-batch-size 8
 ```
 
-Continue training from a checkpoint:
+Continue an interrupted tracked run from its latest checkpoint:
 
 ```console
-scripts/train.py --resume-checkpoint data/checkpoints/2026-09-20_14-30-00/latest
+scripts/train.py --continue-run RUN_ID
 ```
+
+MLflow tracks locally by default; W&B is off unless enabled with `--wandb-project`. See the [local MLflow workflow](docs/mlflow.md) for checkpoint selection, forking, evaluations, UI setup, and a short training walkthrough.
 
 Train on every GPU in the machine with one process per GPU:
 

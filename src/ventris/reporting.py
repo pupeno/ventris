@@ -1,13 +1,18 @@
-"""Report training progress to the terminal and Weights & Biases."""
+"""Report training progress to the terminal, local MLflow, and Weights & Biases."""
 
 import sys
 from contextlib import ExitStack
 from pathlib import Path
 from types import TracebackType
+from uuid import uuid4
 
+import mlflow
 import wandb
+from mlflow import MlflowClient
+from mlflow.entities import LoggedModelInput
 from tqdm import tqdm
 
+from ventris.tracking import configure_tracking
 from ventris.training_results import StepResult, ValidationResult
 
 _PROGRESS_BAR_FORMAT = (
@@ -36,6 +41,9 @@ class TrainingReporter:
         wandb_project: str | None,
         run_id: str,
         config: dict[str, object],
+        mlflow_root: str | None = None,
+        continue_run: str | None = None,
+        source_checkpoint: str | None = None,
     ) -> None:
         self.total_steps = total_steps
         self.initial_step = start_step
@@ -46,6 +54,9 @@ class TrainingReporter:
         self.wandb_project = wandb_project
         self.run_id = run_id
         self.config = config
+        self.mlflow_root = mlflow_root
+        self.mlflow_run_id = continue_run
+        self.source_checkpoint = source_checkpoint
         self.next_checkpoint = min(
             (start_step // validation_interval_steps + 1) * validation_interval_steps,
             total_steps,
@@ -60,8 +71,12 @@ class TrainingReporter:
         print(
             f"Model: {self.config['model_type']} | Parameters: {self.config['parameter_count']:,}"
         )
-        self._start_tracking()
-        self._open_progress_bars()
+        try:
+            self._start_tracking()
+            self._open_progress_bars()
+        except BaseException:
+            self._stack.__exit__(*sys.exc_info())
+            raise
         return self
 
     def __exit__(
@@ -109,8 +124,7 @@ class TrainingReporter:
         }
         metrics.update(_validation_metrics(validation))
         self._write_samples(validation.samples)
-        if self._tracking_run is not None:
-            self._tracking_run.log(metrics, step=completed)
+        self._log(metrics, completed)
 
     def step_completed(
         self,
@@ -165,17 +179,63 @@ class TrainingReporter:
         """Commit all metrics collected for the current optimizer step."""
         assert self._pending_step is not None
         assert self._pending_metrics is not None
-        if self._tracking_run is not None:
-            self._tracking_run.log(self._pending_metrics, step=self._pending_step)
+        self._log(self._pending_metrics, self._pending_step)
         self._pending_step = None
         self._pending_metrics = None
 
+    def _log(self, metrics: dict[str, float | str], step: int) -> None:
+        if self._tracking_run is not None:
+            self._tracking_run.log(metrics, step=step)
+        if self.mlflow_root is not None:
+            mlflow.log_metrics(
+                {key: value for key, value in metrics.items() if isinstance(value, (int, float))},
+                step=step,
+            )
+            samples = {key: value for key, value in metrics.items() if isinstance(value, str)}
+            if samples:
+                mlflow.log_dict(samples, f"samples/step-{step:06d}.json")
+
     def _start_tracking(self) -> None:
+        if self.mlflow_root is not None:
+            experiment_id = configure_tracking(self.mlflow_root)
+            tracked = self._stack.enter_context(
+                mlflow.start_run(
+                    run_id=self.mlflow_run_id, experiment_id=experiment_id, run_name=self.run_id
+                )
+            )
+            self.mlflow_run_id = tracked.info.run_id
+            mlflow.set_tag("ventris.kind", "training")
+            # Execution settings can change when resuming; training parameters cannot.
+            mlflow.log_params(
+                {
+                    key: value
+                    for key, value in self.config.items()
+                    if key
+                    not in {
+                        "device_batch_size",
+                        "validation_interval_steps",
+                        "milestone_interval_checkpoints",
+                        "validation_tokens",
+                        "compile_model",
+                        "wandb_project",
+                        "mlflow_root",
+                        "world_size",
+                    }
+                }
+            )
+            mlflow.log_dict(self.config, f"invocations/{uuid4().hex}.json")
+            if self.source_checkpoint is not None:
+                mlflow.set_tag("ventris.source_checkpoint", self.source_checkpoint)
+                if self.source_checkpoint.startswith("m-"):
+                    MlflowClient().log_inputs(
+                        self.mlflow_run_id, models=[LoggedModelInput(self.source_checkpoint)]
+                    )
+            print(f"MLflow run: {self.mlflow_run_id}")
         if self.wandb_project is not None:
             self._tracking_run = self._stack.enter_context(
                 wandb.init(
                     project=self.wandb_project,
-                    id=self.run_id,
+                    id=self.mlflow_run_id or self.run_id,
                     resume="allow",
                     config=self.config,
                     save_code=True,
