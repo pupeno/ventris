@@ -1,4 +1,4 @@
-"""A fixed-text next-token loss check for the checkpoint/evaluation workflow."""
+"""Test-only evaluation to exercise MLflow checkpoint and result linkage."""
 
 import hashlib
 import json
@@ -13,12 +13,12 @@ from mlflow.entities import Dataset, DatasetInput, LoggedModelInput
 from ventris.common import evaluation_mode
 from ventris.data import load_tokenizer
 from ventris.models import load_model
-from ventris.tracking import DEFAULT_MLFLOW_ROOT, configure_tracking, resolve_checkpoint
+from ventris.tracking import configure_tracking, resolve_checkpoint
 
 FIXTURE = "The sun warms the ground. Water flows downhill. A book rests on the table.\n"
 
 
-def evaluate(checkpoint: str | Path, *, mlflow_root: str = DEFAULT_MLFLOW_ROOT) -> str:
+def evaluate_fixture(checkpoint: str | Path, *, mlflow_root: str) -> str:
     """Reload exact tracked weights and record a separate, reproducible fixture evaluation."""
     experiment_id = configure_tracking(mlflow_root)
     path, model_id = resolve_checkpoint(checkpoint, mlflow_root)

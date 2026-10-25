@@ -113,7 +113,7 @@ mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
 
 Open http://localhost:5000 and select `ventris`. MLflow's built-in `Default` experiment can stay empty. For a browser on the native Linux Docker host, add `--host 0.0.0.0 --cors-allowed-origins http://CONTAINER_IP:5000` and open that address; `hostname -I` inside the container prints its IP.
 
-Training prints run IDs and `models:/MODEL_ID` checkpoint references. Run a small fixture evaluation with `scripts/evaluate.py --checkpoint models:/MODEL_ID`. Generation and evaluation also accept native registry aliases such as `models:/ventris-rope-v1@selected`.
+Training prints run IDs and `models:/MODEL_ID` checkpoint references. Generation also accepts native registry aliases such as `models:/ventris-rope-v1@selected`.
 
 ## Fix formatting
 

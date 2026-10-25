@@ -19,7 +19,6 @@ def load_script(script_name: str):
     ("script_name", "work_function"),
     [
         ("generate.py", "generate"),
-        ("evaluate.py", "evaluate"),
         ("prepare_data.py", "prepare_data"),
         ("train.py", "train"),
         ("train_tokenizer.py", "train_tokenizer"),

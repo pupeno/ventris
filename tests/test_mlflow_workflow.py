@@ -62,7 +62,7 @@ def test_evaluation_reloads_in_fresh_process_and_links_exact_weights(local_train
     import subprocess
     import sys
 
-    from ventris.evaluate import evaluate
+    from tests.mlflow_fixture import evaluate_fixture
 
     checkpoint = train_module.train(short_training(2), local_training, architecture=architecture)
     client = MlflowClient()
@@ -71,13 +71,13 @@ def test_evaluation_reloads_in_fresh_process_and_links_exact_weights(local_train
     training_run = client.search_runs([experiment.experiment_id])[0]
     model_id = training_run.data.tags["ventris.latest_checkpoint"]
     reference = f"models:/{model_id}"
-    first_id = evaluate(reference, mlflow_root=local_training.mlflow_root)
+    first_id = evaluate_fixture(reference, mlflow_root=local_training.mlflow_root)
     completed = subprocess.run(
         [
             sys.executable,
             "-c",
-            "import json, sys; from ventris.evaluate import evaluate; "
-            "print(json.dumps(evaluate(sys.argv[1], mlflow_root=sys.argv[2])))",
+            "import json, sys; from tests.mlflow_fixture import evaluate_fixture; "
+            "print(json.dumps(evaluate_fixture(sys.argv[1], mlflow_root=sys.argv[2])))",
             reference,
             local_training.mlflow_root,
         ],
@@ -106,7 +106,7 @@ def test_evaluation_reloads_in_fresh_process_and_links_exact_weights(local_train
 def test_native_alias_selects_weights_for_generation_and_keeps_evaluation_inputs(
     local_training, monkeypatch
 ):
-    from ventris.evaluate import evaluate
+    from tests.mlflow_fixture import evaluate_fixture
     from ventris.generate import generate
 
     train_module.train(short_training(2), local_training, architecture="vanilla")
@@ -121,7 +121,7 @@ def test_native_alias_selects_weights_for_generation_and_keeps_evaluation_inputs
     )
     client.set_registered_model_alias("ventris-selected", "selected", version.version)
     alias = "models:/ventris-selected@selected"
-    evaluation_id = evaluate(alias, mlflow_root=local_training.mlflow_root)
+    evaluation_id = evaluate_fixture(alias, mlflow_root=local_training.mlflow_root)
     generated = generate(alias, "token1", max_new_tokens=2, mlflow_root=local_training.mlflow_root)
     assert isinstance(generated, str)
     train_module.train(short_training(2), local_training, architecture="rope")
@@ -233,8 +233,8 @@ def test_mlflow_write_failure_propagates(local_training, tmp_path):
 def test_retention_keeps_evaluated_registered_and_milestone_snapshots(local_training, monkeypatch):
     import wandb
 
+    from tests.mlflow_fixture import evaluate_fixture
     from tests.test_reporting import RecordingRun
-    from ventris.evaluate import evaluate
 
     stop_at = 2
 
@@ -259,7 +259,7 @@ def test_retention_keeps_evaluated_registered_and_milestone_snapshots(local_trai
     run = client.search_runs([experiment.experiment_id])[0]
     run_id = run.info.run_id
     evaluated_id = run.data.tags["ventris.latest_checkpoint"]
-    evaluate(f"models:/{evaluated_id}", mlflow_root=local_training.mlflow_root)
+    evaluate_fixture(f"models:/{evaluated_id}", mlflow_root=local_training.mlflow_root)
     stop_at = 4
     with pytest.raises(RuntimeError, match="interrupted"):
         train_module.train(training, run_config, continue_run=run_id)
